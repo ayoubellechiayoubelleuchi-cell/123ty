@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:,">
   <title>تسجيل المبيعات اليومية</title>
   <style>
     :root {
-      --bg: #f5f7fb;
-      --card: #ffffff;
+      --bg: #305ebb;
+      --card: #c01717;
       --text: #1f2a44;
       --muted: #5b6475;
       --accent: #2f7bff;
-      --ok: #17804f;
+      --ok: #31ad73;
       --border: #dde4f0;
     }
 
@@ -35,7 +36,7 @@
 
     .card {
       background: var(--card);
-      border: 1px solid var(--border);دفع
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 18px;
       margin-bottom: 16px;
@@ -261,13 +262,118 @@
       text-align: center;
       padding: 14px;
     }
+
+    .auth-box {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #f9fbff;
+      margin-bottom: 12px;
+    }
+
+    .auth-status {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .auth-status.ok {
+      color: var(--ok);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .idea-tip {
+      margin-top: 10px;
+      border: 1px solid #ffd38a;
+      border-radius: 10px;
+      background: #fff8ea;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #7a4a00;
+    }
+
+    .idea-tip strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .idea-profit-weak {
+      color: #b30000;
+      font-weight: 700;
+    }
+
+    .idea-profit-good {
+      color: var(--ok);
+      font-weight: 700;
+    }
+
+    .sync-status {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+
+    .sync-status.ok {
+      color: var(--ok);
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        margin: 12px auto;
+        padding: 0 10px;
+      }
+
+      .card {
+        padding: 14px;
+      }
+
+      #authPage {
+        display: block;
+      }
+
+      .actions button {
+        width: 100%;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="container">
+    <div class="card" id="authPage">
+      <h2 style="margin:0 0 8px">تسجيل الدخول بالاسم</h2>
+      <p>أدخل الاسم فقط للدخول.</p>
+      <div class="auth-box">
+        <form id="authForm" autocomplete="on">
+          <div class="grid">
+            <div>
+              <label for="usernameInput">الاسم</label>
+              <input id="usernameInput" name="username" type="text" autocomplete="username" placeholder="ayoub" />
+            </div>
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit" id="loginBtn">دخول</button>
+            <button class="ghost" type="button" id="signupBtn">إنشاء حساب (اختياري)</button>
+          </div>
+        </form>
+        <div id="authStatus" class="auth-status"></div>
+      </div>
+    </div>
+
+    <div id="appPage" class="hidden">
     <div class="card">
+      <div class="actions" style="margin-top:0; margin-bottom:10px;">
+        <button class="ghost" type="button" id="logoutBtnApp">تسجيل الخروج</button>
+      </div>
       <h1>تسجيل المبيعات اليومية</h1>
       <p>سجّل البيع اليومي مع وصف الدفعة، وأدخل إجمالي البيع؛ سيتم حساب الربح وإعادة الاستثمار 10% والربح الصافي تلقائيًا. خانة «حالة الدين» مستقلة ومربوطة بخانة الآجل: إن وُجد آجل اكتب المبلغ في «مبيعات غير مدفوعة» (أو ألغِ «البيع نقدًا كاملًا»). لاحقًا من الجدول يمكن تسجيل سداد الدين.</p>
+      <div id="syncStatus" class="sync-status">جاهز.</div>
 
       <form id="saleForm">
         <div class="grid">
@@ -335,6 +441,72 @@
     </div>
 
     <div class="card">
+      <h2>خانة الأفكار</h2>
+      <p>سجّل أي فكرة مشروع قبل التنفيذ، وخلي الحسابات تحددلك إذا الفكرة مربحة ولا لا.</p>
+
+      <form id="ideaForm">
+        <div class="grid">
+          <div>
+            <label for="ideaName">📌 اسم الفكرة</label>
+            <input id="ideaName" type="text" placeholder="مثال: معطر صيفي جديد" required />
+          </div>
+          <div class="span-2">
+            <label for="ideaDescription">📝 وصف بسيط (شنوّا الفكرة؟)</label>
+            <textarea id="ideaDescription" placeholder="مثال: ريحة منعشة للسيارات" required></textarea>
+          </div>
+          <div>
+            <label for="ideaCapital">💰 رأس المال المتوقع (د)</label>
+            <input id="ideaCapital" type="number" min="0" step="0.01" placeholder="40" required />
+          </div>
+          <div>
+            <label for="ideaPrice">💸 سعر البيع المتوقع (د)</label>
+            <input id="ideaPrice" type="number" min="0" step="0.01" placeholder="10" required />
+          </div>
+          <div>
+            <label for="ideaQty">🔢 الكمية المتوقعة للبيع</label>
+            <input id="ideaQty" type="number" min="0" step="1" placeholder="10" required />
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat">📊 إجمالي البيع المتوقع: <b id="ideaExpectedSales">0.00 د</b></div>
+          <div class="stat">📈 الربح المتوقع: <b id="ideaExpectedProfit">0.00 د</b></div>
+        </div>
+
+        <div id="ideaAdvice" class="idea-tip">
+          <strong>💡 نصيحة قوية</strong>
+          قبل ما تنفّذ أي فكرة: إذا الربح المتوقع ضعيف، ما تبدأش فيها. ركّز فقط على الأفكار اللي تعطيك فرق واضح في الربح.
+        </div>
+
+        <div class="actions">
+          <button class="primary" type="submit">إضافة فكرة</button>
+          <button class="ghost" type="button" id="resetIdeas">مسح كل الأفكار</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>سجل الأفكار</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>اسم الفكرة</th>
+              <th>الوصف</th>
+              <th>رأس المال</th>
+              <th>سعر البيع</th>
+              <th>الكمية</th>
+              <th>إجمالي البيع المتوقع</th>
+              <th>الربح المتوقع</th>
+            </tr>
+          </thead>
+          <tbody id="ideaRows"></tbody>
+        </table>
+      </div>
+      <div id="ideasEmptyState" class="empty">لا توجد أفكار بعد. أضف أول فكرة.</div>
+    </div>
+
+    <div class="card">
       <h2>ملخص المشروع</h2>
       <div class="stats">
         <div class="stat">إجمالي المبيعات: <b id="totalSales">0.00 د</b></div>
@@ -373,321 +545,10 @@
       </div>
       <div id="emptyState" class="empty">لا توجد بيانات بعد. أضف أول عملية بيع.</div>
     </div>
+    </div>
   </div>
 
-  <script>
-    const STORAGE_KEY = "daily-sales-log-v1";
-
-    const form = document.getElementById("saleForm");
-    const rowsContainer = document.getElementById("rows");
-    const emptyState = document.getElementById("emptyState");
-    const resetBtn = document.getElementById("resetData");
-
-    const fields = {
-      date: document.getElementById("date"),
-      product: document.getElementById("product"),
-      description: document.getElementById("description"),
-      totalSale: document.getElementById("totalSale"),
-      unpaidAmount: document.getElementById("unpaidAmount"),
-      cost: document.getElementById("cost")
-    };
-
-    const debtFullyPaid = document.getElementById("debtFullyPaid");
-
-    const totalSalesEl = document.getElementById("totalSales");
-    const totalProfitEl = document.getElementById("totalProfit");
-    const totalReinvestEl = document.getElementById("totalReinvest");
-    const totalNetProfitEl = document.getElementById("totalNetProfit");
-    const currentCapitalEl = document.getElementById("currentCapital");
-    const totalUnpaidEl = document.getElementById("totalUnpaid");
-    const totalPaidEl = document.getElementById("totalPaid");
-
-    function newRecordId() {
-      return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-
-    function clampUnpaid(totalSale, unpaidRaw) {
-      const t = Number(totalSale) || 0;
-      let u = Number(unpaidRaw);
-      if (!Number.isFinite(u) || u < 0) u = 0;
-      if (u > t) u = t;
-      return u;
-    }
-
-    function originalUnpaid(record) {
-      return clampUnpaid(record.totalSale, record.unpaidAmount ?? record.unpaid ?? 0);
-    }
-
-    function remainingUnpaid(record) {
-      const u = originalUnpaid(record);
-      if (record.debtCleared) return 0;
-      return u;
-    }
-
-    function collectedFromCustomer(record) {
-      const t = Number(record.totalSale) || 0;
-      return t - remainingUnpaid(record);
-    }
-
-    function syncDebtFullyPaidUi() {
-      if (debtFullyPaid.checked) {
-        fields.unpaidAmount.value = "";
-        fields.unpaidAmount.disabled = true;
-      } else {
-        fields.unpaidAmount.disabled = false;
-      }
-    }
-
-    debtFullyPaid.addEventListener("change", syncDebtFullyPaidUi);
-    syncDebtFullyPaidUi();
-
-    fields.unpaidAmount.addEventListener("input", () => {
-      const str = fields.unpaidAmount.value.trim();
-      if (str === "") return;
-      const v = Number(str);
-      if (!Number.isFinite(v) || v <= 0) return;
-      if (debtFullyPaid.checked) {
-        debtFullyPaid.checked = false;
-        syncDebtFullyPaidUi();
-      }
-    });
-
-    function currency(value) {
-      return `${Number(value).toFixed(2)} د`;
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement("div");
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    /** يدعم السجلات القديمة التي كانت تستخدم الكمية وسعر الوحدة */
-    function normalizeRecordsStep1(list) {
-      return list.map((r) => {
-        if (typeof r.description === "string" && r.totalSale != null) {
-          return r;
-        }
-        const totalSale =
-          r.totalSale != null
-            ? Number(r.totalSale)
-            : Number(r.qty || 0) * Number(r.unitPrice || 0);
-        const description =
-          typeof r.description === "string"
-            ? r.description
-            : r.qty != null
-              ? `عدد الوحدات: ${r.qty}`
-              : "";
-        const { qty, unitPrice, ...rest } = r;
-        return { ...rest, description, totalSale };
-      });
-    }
-
-    function normalizeRecordsStep2(list) {
-      return list.map((r) => {
-        const unpaidAmount = clampUnpaid(r.totalSale, r.unpaidAmount ?? r.unpaid);
-        const debtCleared = !!r.debtCleared;
-        const debtClearedAt = r.debtClearedAt || null;
-        return { ...r, unpaidAmount, debtCleared, debtClearedAt };
-      });
-    }
-
-    function migrateRecordIds(list) {
-      let changed = false;
-      const next = list.map((r) => {
-        if (r.recordId) return r;
-        changed = true;
-        return { ...r, recordId: newRecordId() };
-      });
-      return { list: next, changed };
-    }
-
-    function loadRecords() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : [];
-        const arr = Array.isArray(parsed) ? parsed : [];
-        return normalizeRecordsStep2(normalizeRecordsStep1(arr));
-      } catch {
-        return [];
-      }
-    }
-
-    let records = loadRecords();
-    const migrated = migrateRecordIds(records);
-    records = migrated.list;
-    if (migrated.changed) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    }
-
-    function saveRecords() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    }
-
-    function computeRecord(base) {
-      const totalSale = Number(base.totalSale);
-      const unpaidAmount = clampUnpaid(totalSale, base.unpaidAmount);
-      const profit = totalSale - base.cost;
-      const reinvest = profit * 0.1;
-      const netProfit = profit - reinvest;
-      const newCapital = base.cost + reinvest;
-
-      return {
-        date: base.date,
-        product: base.product,
-        description: base.description,
-        totalSale,
-        unpaidAmount,
-        debtCleared: false,
-        debtClearedAt: null,
-        cost: base.cost,
-        recordId: newRecordId(),
-        profit,
-        reinvest,
-        netProfit,
-        newCapital
-      };
-    }
-
-    function renderDebtCell(record) {
-      const u = originalUnpaid(record);
-      if (u <= 0) {
-        return "—";
-      }
-      if (record.debtCleared) {
-        const when = record.debtClearedAt ? escapeHtml(String(record.debtClearedAt)) : "";
-        return `<span class="tag-ok">تم دفع الدين</span>${when ? `<br><span style="font-size:12px;color:var(--muted)">${when}</span>` : ""}`;
-      }
-      const id = escapeHtml(String(record.recordId || ""));
-      return `<button type="button" class="ghost btn-small" data-debt-paid="${id}">تسجيل دفع الدين</button>`;
-    }
-
-    function render() {
-      rowsContainer.innerHTML = "";
-
-      let totalSales = 0;
-      let totalProfit = 0;
-      let totalReinvest = 0;
-      let totalNetProfit = 0;
-      let currentCapital = 0;
-      let sumRemaining = 0;
-      let sumCollected = 0;
-
-      for (const record of records) {
-        totalSales += record.totalSale;
-        totalProfit += record.profit;
-        totalReinvest += record.reinvest;
-        totalNetProfit += record.netProfit;
-        currentCapital += record.newCapital;
-
-        const orig = originalUnpaid(record);
-        const rem = remainingUnpaid(record);
-        const col = collectedFromCustomer(record);
-        sumRemaining += rem;
-        sumCollected += col;
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${escapeHtml(String(record.date))}</td>
-          <td>${escapeHtml(String(record.product))}</td>
-          <td>${escapeHtml(String(record.description || ""))}</td>
-          <td>${currency(record.totalSale)}</td>
-          <td>${orig > 0 ? currency(orig) : "—"}</td>
-          <td>${orig > 0 ? currency(rem) : "—"}</td>
-          <td>${currency(col)}</td>
-          <td>${renderDebtCell(record)}</td>
-          <td>${currency(record.cost)}</td>
-          <td>${currency(record.profit)}</td>
-          <td>${currency(record.reinvest)}</td>
-          <td>${currency(record.netProfit)}</td>
-          <td>${currency(record.newCapital)}</td>
-        `;
-        rowsContainer.appendChild(tr);
-      }
-
-      totalSalesEl.textContent = currency(totalSales);
-      totalProfitEl.textContent = currency(totalProfit);
-      totalReinvestEl.textContent = currency(totalReinvest);
-      totalNetProfitEl.textContent = currency(totalNetProfit);
-      currentCapitalEl.textContent = currency(currentCapital);
-      totalUnpaidEl.textContent = currency(sumRemaining);
-      totalPaidEl.textContent = currency(sumCollected);
-
-      emptyState.style.display = records.length === 0 ? "block" : "none";
-    }
-
-    rowsContainer.addEventListener("click", (event) => {
-      const btn = event.target.closest("[data-debt-paid]");
-      if (!btn) return;
-      const id = btn.getAttribute("data-debt-paid");
-      const rec = records.find((r) => String(r.recordId) === id);
-      if (!rec || originalUnpaid(rec) <= 0 || rec.debtCleared) return;
-      const ok = confirm("تأكيد أن الزبون سدّى كامل الآجل المسجّل لهذا السطر؟");
-      if (!ok) return;
-      rec.debtCleared = true;
-      rec.debtClearedAt = new Date().toISOString().slice(0, 10);
-      saveRecords();
-      render();
-    });
-
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-
-      const unpaidStr = fields.unpaidAmount.value.trim();
-      const unpaidRaw = unpaidStr === "" ? 0 : Number(unpaidStr);
-      const unpaidEffective = debtFullyPaid.checked ? 0 : unpaidRaw;
-
-      if (!debtFullyPaid.checked && Number.isNaN(unpaidRaw)) {
-        alert("أدخل رقما صحيحا في خانة «مبيعات غير مدفوعة»، أو اتركها فارغة (صفر).");
-        return;
-      }
-
-      const base = {
-        date: fields.date.value,
-        product: fields.product.value.trim(),
-        description: fields.description.value.trim(),
-        totalSale: Number(fields.totalSale.value),
-        unpaidAmount: unpaidEffective,
-        cost: Number(fields.cost.value)
-      };
-
-      if (
-        !base.date ||
-        !base.product ||
-        !base.description ||
-        base.totalSale < 0 ||
-        Number.isNaN(base.totalSale) ||
-        base.unpaidAmount < 0 ||
-        Number.isNaN(base.unpaidAmount) ||
-        base.cost < 0 ||
-        Number.isNaN(base.cost)
-      ) {
-        return;
-      }
-
-      if (base.unpaidAmount > base.totalSale) {
-        alert("مبلغ «غير المدفوع» لا يمكن أن يتجاوز إجمالي البيع.");
-        return;
-      }
-
-      const computed = computeRecord(base);
-      records.unshift(computed);
-      saveRecords();
-      render();
-      form.reset();
-      debtFullyPaid.checked = true;
-      syncDebtFullyPaidUi();
-    });
-
-    resetBtn.addEventListener("click", () => {
-      const ok = confirm("هل أنت متأكد من حذف كل السجلات؟");
-      if (!ok) return;
-      records = [];
-      saveRecords();
-      render();
-    });
-
-    render();
-  </script>
+  <script defer src="./supabase-js-v2.min.js"></script>
+  <script defer src="./app.js"></script>
 </body>
 </html>
