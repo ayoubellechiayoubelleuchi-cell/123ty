@@ -50,8 +50,10 @@ const dom = {
   appPage: document.getElementById("appPage"),
   authPage: document.getElementById("authPage"),
   authForm: document.getElementById("authForm"),
-  usernameInput: document.getElementById("usernameInput"),
+  emailInput: document.getElementById("emailInput"),
+  passwordInput: document.getElementById("passwordInput"),
   loginBtn: document.getElementById("loginBtn"),
+  signupBtn: document.getElementById("signupBtn"),
   logoutBtnApp: document.getElementById("logoutBtnApp"),
   authStatus: document.getElementById("authStatus"),
   syncStatus: document.getElementById("syncStatus"),
@@ -159,6 +161,7 @@ function setAuthBusy(isBusy) {
 
 function refreshAuthButtons() {
   dom.loginBtn.disabled = state.authBusy;
+  if (dom.signupBtn) dom.signupBtn.disabled = state.authBusy;
   dom.loginBtn.textContent = "دخول";
 }
 
@@ -177,48 +180,25 @@ function setAppEnabled(enabled) {
 }
 
 // =========================
-// Auth helpers (username-only UI)
+// Auth helpers (gmail + password)
 // =========================
-function getAuthUsername() {
-  return String(dom.usernameInput.value || "").trim();
+function getAuthEmail() {
+  return String(dom.emailInput.value || "").trim().toLowerCase();
 }
 
-function derivePasswordFromUsername(username) {
-  const normalized = String(username || "").trim().toLowerCase();
-  return `u_${normalized || "user"}_login`;
-}
-
-function usernameToEmail(username) {
-  const raw = String(username || "");
-  const utf8 = encodeURIComponent(raw).replace(/%([0-9A-F]{2})/g, (_, hex) =>
-    String.fromCharCode(parseInt(hex, 16))
-  );
-  const b64 = btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  return `u_${b64 || "user"}@app.local`;
-}
-
-function usernameToLegacyEmail(username) {
-  const safe = String(username || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9._-]/g, "");
-  return `${safe || "user"}@app.local`;
-}
-
-function getCandidateEmailsFromInput(value) {
-  const raw = String(value || "").trim().toLowerCase();
-  if (!raw) return [];
-  if (raw.includes("@")) return [raw];
-  const current = usernameToEmail(raw);
-  const legacy = usernameToLegacyEmail(raw);
-  return current === legacy ? [current] : [current, legacy];
+function getAuthPassword() {
+  return String(dom.passwordInput.value || "");
 }
 
 function validateAuthInputs() {
-  const username = getAuthUsername();
-  if (!String(username).trim()) {
-    return { ok: false, message: "أدخل الاسم." };
+  const email = getAuthEmail();
+  const password = getAuthPassword();
+  const emailRegex = /^[^\s@]+@gmail\.com$/i;
+  if (!emailRegex.test(email)) {
+    return { ok: false, message: "أدخل Gmail صحيح (example@gmail.com)." };
+  }
+  if (password.length < 6) {
+    return { ok: false, message: "كلمة المرور لازم تكون 6 أحرف على الأقل." };
   }
   return { ok: true, message: "" };
 }
@@ -232,13 +212,8 @@ function formatAuthError(error, actionLabel) {
   if (msg.includes("email not confirmed")) return "الحساب موجود لكن البريد غير مؤكد في إعدادات Supabase.";
   if (msg.includes("user already registered")) return "هذا الحساب موجود بالفعل.";
   if (msg.includes("password")) return `مشكلة في كلمة المرور: ${error.message}`;
-  if (error.status === 400) return `${actionLabel} فشل: تحقق من الاسم أو إعدادات Auth. (${details})`;
+  if (error.status === 400) return `${actionLabel} فشل: تحقق من Gmail أو كلمة المرور أو إعدادات Auth. (${details})`;
   return `${actionLabel} فشل: ${details}`;
-}
-
-function isInvalidCredentialsError(error) {
-  const msg = String(error?.message || "").toLowerCase();
-  return msg.includes("invalid login credentials") || msg.includes("invalid_credentials") || msg.includes("user not found");
 }
 
 function isUserAlreadyRegisteredError(error) {
@@ -624,45 +599,27 @@ async function handleLogin() {
   if (!state.db || state.authBusy) return;
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
-  const username = getAuthUsername();
-  const candidateEmails = getCandidateEmailsFromInput(username);
-  const primaryEmail = candidateEmails[0] || "";
-  const password = derivePasswordFromUsername(username);
-  if (!String(username).trim()) return setAuthStatus("أدخل الاسم.", false);
-  log("info", "login_attempt", { username: String(username).trim(), candidates: candidateEmails.map(safeEmailForLog) });
-
+  const email = getAuthEmail();
+  const password = getAuthPassword();
+  log("info", "login_attempt", { email: safeEmailForLog(email) });
+  setAuthStatus("جارٍ تسجيل الدخول...", false);
+  setAuthBusy(true);
   let error = null;
-  for (const email of candidateEmails) {
-    setAuthBusy(true);
-    try {
-      ({ error } = await state.db.auth.signInWithPassword({ email, password }));
-    } catch (err) {
-      error = { message: `network_error:${err?.message || "unknown"}` };
-    } finally {
-      setAuthBusy(false);
-    }
-    if (!error) {
-      log("info", "login_candidate_ok", { email: safeEmailForLog(email) });
-      break;
-    }
-    log("warn", "login_candidate_failed", { email: safeEmailForLog(email), message: error.message, status: error.status, code: error.code });
-    if (!isInvalidCredentialsError(error)) break;
+  try {
+    ({ error } = await state.db.auth.signInWithPassword({ email, password }));
+  } catch (err) {
+    error = { message: `network_error:${err?.message || "unknown"}` };
+  } finally {
+    setAuthBusy(false);
   }
   if (error?.message?.startsWith("network_error:")) {
     log("error", "login_network_error", { detail: error.message });
     return setAuthStatus("فشل الاتصال بالشبكة أثناء تسجيل الدخول. تحقق من الإنترنت ثم أعد المحاولة.", false);
   }
-  if (error && isInvalidCredentialsError(error)) {
-    log("warn", "login_invalid_credentials", { message: error.message, status: error.status, code: error.code });
-    setAuthStatus("الحساب غير موجود. يتم إنشاء حساب جديد بالاسم المدخل...", false);
-    await handleSignup({ forcePassword: password, forceEmail: primaryEmail, autoLoginAfterSignup: true, silentSuccessMessage: true, candidateEmails });
-    return;
-  }
   if (error) {
     log("warn", "login_failed", { message: error.message, status: error.status, code: error.code });
-    return setAuthStatus(formatAuthError(error, "تسجيل الدخول"), false);
+    return setAuthStatus(`فشل تسجيل الدخول: ${formatAuthError(error, "تسجيل الدخول")} إذا الحساب جديد اضغط \"إنشاء حساب بـ Gmail\".`, false);
   }
-  log("info", "login_ok_before_refresh", { email: safeEmailForLog(primaryEmail) });
   await refreshSessionState();
 }
 
@@ -672,13 +629,10 @@ async function handleSignup(options = {}) {
     const validation = validateAuthInputs();
     if (!validation.ok) return setAuthStatus(validation.message, false);
   }
-  const username = getAuthUsername();
-  const candidateEmails = options.candidateEmails || getCandidateEmailsFromInput(username);
-  const email = options.forceEmail || candidateEmails[0] || "";
-  const password = options.forcePassword || derivePasswordFromUsername(username);
-  if ((!options.forceEmail && !String(username).trim()) || !password) return setAuthStatus("أدخل الاسم.", false);
+  const email = (options.forceEmail || getAuthEmail()).toLowerCase();
+  const password = options.forcePassword || getAuthPassword();
+  if (!email || !password) return setAuthStatus("أدخل Gmail وكلمة المرور.", false);
   log("info", "signup_attempt", {
-    username: String(username).trim(),
     email: safeEmailForLog(email),
     autoLoginAfterSignup: !!options.autoLoginAfterSignup
   });
@@ -689,7 +643,7 @@ async function handleSignup(options = {}) {
     ({ error } = await state.db.auth.signUp({
       email,
       password,
-      options: { data: { username: String(username).trim() } }
+      options: { data: { email } }
     }));
   } catch (err) {
     error = { message: `network_error:${err?.message || "unknown"}` };
@@ -704,17 +658,13 @@ async function handleSignup(options = {}) {
     if (isUserAlreadyRegisteredError(error)) {
       log("info", "signup_user_exists_try_login", { email: safeEmailForLog(email) });
       let loginError = null;
-      for (const candidateEmail of candidateEmails) {
-        setAuthBusy(true);
-        try {
-          ({ error: loginError } = await state.db.auth.signInWithPassword({ email: candidateEmail, password }));
-        } catch (err) {
-          loginError = { message: `network_error:${err?.message || "unknown"}` };
-        } finally {
-          setAuthBusy(false);
-        }
-        if (!loginError) break;
-        if (!isInvalidCredentialsError(loginError)) break;
+      setAuthBusy(true);
+      try {
+        ({ error: loginError } = await state.db.auth.signInWithPassword({ email, password }));
+      } catch (err) {
+        loginError = { message: `network_error:${err?.message || "unknown"}` };
+      } finally {
+        setAuthBusy(false);
       }
       if (loginError) {
         log("warn", "signup_user_exists_login_failed", { detail: loginError?.message });
@@ -730,17 +680,13 @@ async function handleSignup(options = {}) {
   if (options.autoLoginAfterSignup) {
     log("info", "signup_auto_login_start", { email: safeEmailForLog(email) });
     let loginError = null;
-    for (const candidateEmail of candidateEmails) {
-      setAuthBusy(true);
-      try {
-        ({ error: loginError } = await state.db.auth.signInWithPassword({ email: candidateEmail, password }));
-      } catch (err) {
-        loginError = { message: `network_error:${err?.message || "unknown"}` };
-      } finally {
-        setAuthBusy(false);
-      }
-      if (!loginError) break;
-      if (!isInvalidCredentialsError(loginError)) break;
+    setAuthBusy(true);
+    try {
+      ({ error: loginError } = await state.db.auth.signInWithPassword({ email, password }));
+    } catch (err) {
+      loginError = { message: `network_error:${err?.message || "unknown"}` };
+    } finally {
+      setAuthBusy(false);
     }
     if (loginError) {
       log("warn", "signup_auto_login_failed", { detail: loginError?.message });
@@ -894,6 +840,10 @@ function init() {
     event.preventDefault();
     log("info", "auth_form_submit", {});
     await handleLogin();
+  });
+  dom.signupBtn?.addEventListener("click", async () => {
+    log("info", "signup_button_click", {});
+    await handleSignup({ autoLoginAfterSignup: true, silentSuccessMessage: true });
   });
   dom.logoutBtnApp.addEventListener("click", async () => {
     if (!state.db) return;
