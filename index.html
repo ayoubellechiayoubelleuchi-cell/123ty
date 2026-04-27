@@ -348,22 +348,11 @@
   <div class="container">
     <div class="card" id="authPage">
       <h2 style="margin:0 0 8px">تسجيل الدخول بـ Gmail</h2>
-      <p>أدخل Gmail وكلمة المرور. استعمل "دخول" للحساب الموجود، أو "إنشاء حساب بـ Gmail" للحساب الجديد.</p>
+      <p>الدخول يتم عبر Google رسميًا. لن نطلب منك كلمة مرور Google داخل السيت.</p>
       <div class="auth-box">
-        <form id="authForm" autocomplete="on">
-          <div class="grid">
-            <div>
-              <label for="emailInput">Gmail</label>
-              <input id="emailInput" name="email" type="email" autocomplete="email" placeholder="example@gmail.com" />
-            </div>
-            <div>
-              <label for="passwordInput">كلمة المرور</label>
-              <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="********" />
-            </div>
-          </div>
+        <form id="authForm">
           <div class="actions">
-            <button class="primary" type="submit" id="loginBtn">دخول</button>
-            <button class="ghost" type="button" id="signupBtn">إنشاء حساب بـ Gmail</button>
+            <button class="primary" type="button" id="googleLoginBtn">الدخول بـ Google Gmail</button>
           </div>
         </form>
         <div id="authStatus" class="auth-status"></div>
