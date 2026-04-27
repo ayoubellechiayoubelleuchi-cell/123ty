@@ -52,7 +52,6 @@ const dom = {
   authForm: document.getElementById("authForm"),
   usernameInput: document.getElementById("usernameInput"),
   loginBtn: document.getElementById("loginBtn"),
-  signupBtn: document.getElementById("signupBtn"),
   logoutBtnApp: document.getElementById("logoutBtnApp"),
   authStatus: document.getElementById("authStatus"),
   syncStatus: document.getElementById("syncStatus"),
@@ -160,7 +159,6 @@ function setAuthBusy(isBusy) {
 
 function refreshAuthButtons() {
   dom.loginBtn.disabled = state.authBusy;
-  if (dom.signupBtn) dom.signupBtn.disabled = state.authBusy;
   dom.loginBtn.textContent = "دخول";
 }
 
@@ -896,10 +894,6 @@ function init() {
     event.preventDefault();
     log("info", "auth_form_submit", {});
     await handleLogin();
-  });
-  dom.signupBtn?.addEventListener("click", async () => {
-    log("info", "signup_button_click", {});
-    await handleSignup();
   });
   dom.logoutBtnApp.addEventListener("click", async () => {
     if (!state.db) return;

@@ -8,7 +8,7 @@
   <style>
     :root {
       --bg: #305ebb;
-      --card: #c01717;
+      --card: #f3f3f3;
       --text: #1f2a44;
       --muted: #5b6475;
       --accent: #2f7bff;
@@ -348,7 +348,7 @@
   <div class="container">
     <div class="card" id="authPage">
       <h2 style="margin:0 0 8px">تسجيل الدخول بالاسم</h2>
-      <p>أدخل الاسم فقط للدخول.</p>
+      <p>أدخل الاسم فقط واضغط دخول. إذا الحساب غير موجود يتعمل تلقائيًا.</p>
       <div class="auth-box">
         <form id="authForm" autocomplete="on">
           <div class="grid">
@@ -359,7 +359,6 @@
           </div>
           <div class="actions">
             <button class="primary" type="submit" id="loginBtn">دخول</button>
-            <button class="ghost" type="button" id="signupBtn">إنشاء حساب (اختياري)</button>
           </div>
         </form>
         <div id="authStatus" class="auth-status"></div>
