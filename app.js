@@ -196,12 +196,6 @@ function isUserAlreadyRegisteredError(error) {
   return msg.includes("user already registered");
 }
 
-async function sendOtpLoginLink(email) {
-  const emailRedirectTo = `${globalThis.location.origin}${globalThis.location.pathname}`;
-  const { error } = await state.db.auth.signInWithOtp({ email, options: { emailRedirectTo } });
-  return error || null;
-}
-
 
 function setPageMode(isLoggedIn) {
   dom.appPage.classList.toggle("hidden", !isLoggedIn);
@@ -614,12 +608,7 @@ async function handleLogin() {
         } else {
           const signupMsg = String(signupErr.message || "").toLowerCase();
           if (signupMsg.includes("user already registered")) {
-            const otpError = await sendOtpLoginLink(email);
-            if (otpError) {
-              setAuthStatus("بيانات الدخول غير صحيحة. تأكد من كلمة المرور لهذا الحساب.", false);
-            } else {
-              setAuthStatus("كلمة المرور غير صحيحة. أرسلنا رابط دخول إلى Gmail الخاص بك.", true);
-            }
+            setAuthStatus("كلمة المرور خاطئة لهذا الحساب.", false);
             return;
           }
           setAuthStatus(formatAuthError(signupErr, "إنشاء الحساب"), false);
