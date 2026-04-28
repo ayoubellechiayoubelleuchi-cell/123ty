@@ -652,7 +652,17 @@ async function handleSignup() {
     const { error } = await signUpWithEmailPassword(email, password);
     if (error) {
       if (isUserAlreadyRegisteredError(error)) {
-        setAuthStatus(AUTH_MESSAGES.accountExistsUseLogin, false);
+        // If account already exists, try login immediately with typed password.
+        const loginExisting = await state.db.auth.signInWithPassword({ email, password });
+        if (loginExisting.error) {
+          if (isInvalidCredentialsError(loginExisting.error)) {
+            setAuthStatus(AUTH_MESSAGES.wrongPassword, false);
+            return;
+          }
+          setAuthStatus(formatAuthError(loginExisting.error, "تسجيل الدخول"), false);
+          return;
+        }
+        await refreshSessionState();
         return;
       }
       setAuthStatus(formatAuthError(error, "إنشاء الحساب"), false);
