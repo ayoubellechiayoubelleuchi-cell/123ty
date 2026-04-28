@@ -53,6 +53,7 @@ const dom = {
   passwordInput: document.getElementById("passwordInput"),
   loginBtn: document.getElementById("loginBtn"),
   signupBtn: document.getElementById("signupBtn"),
+  resetPasswordBtn: document.getElementById("resetPasswordBtn"),
   logoutBtnApp: document.getElementById("logoutBtnApp"),
   authStatus: document.getElementById("authStatus"),
   syncStatus: document.getElementById("syncStatus"),
@@ -161,6 +162,7 @@ function setAuthBusy(isBusy) {
 function refreshAuthButtons() {
   if (dom.loginBtn) dom.loginBtn.disabled = state.authBusy;
   if (dom.signupBtn) dom.signupBtn.disabled = state.authBusy;
+  if (dom.resetPasswordBtn) dom.resetPasswordBtn.disabled = state.authBusy;
 }
 
 // =========================
@@ -183,6 +185,13 @@ function validateAuthInputs() {
   const emailRegex = /^[^\s@]+@gmail\.com$/i;
   if (!emailRegex.test(email)) return { ok: false, message: AUTH_MESSAGES.invalidGmail };
   if (password.length < 6) return { ok: false, message: AUTH_MESSAGES.shortPassword };
+  return { ok: true, message: "" };
+}
+
+function validateEmailOnly() {
+  const email = getAuthEmail();
+  const emailRegex = /^[^\s@]+@gmail\.com$/i;
+  if (!emailRegex.test(email)) return { ok: false, message: AUTH_MESSAGES.invalidGmail };
   return { ok: true, message: "" };
 }
 
@@ -690,6 +699,31 @@ async function handleSignup() {
   }
 }
 
+async function handlePasswordReset() {
+  if (!state.db) {
+    setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
+    return;
+  }
+  if (state.authBusy) return;
+  const emailValidation = validateEmailOnly();
+  if (!emailValidation.ok) return setAuthStatus(emailValidation.message, false);
+  const email = getAuthEmail();
+  setAuthBusy(true);
+  try {
+    const redirectTo = `${globalThis.location.origin}${globalThis.location.pathname}`;
+    const { error } = await state.db.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      setAuthStatus(formatAuthError(error, "استرجاع كلمة المرور"), false);
+      return;
+    }
+    setAuthStatus("تم إرسال رابط إعادة تعيين كلمة المرور إلى Gmail.", true);
+  } catch (err) {
+    setAuthStatus(`تعذر إرسال رابط الاسترجاع: ${err?.message || "خطأ غير معروف"}`, false);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
 // =========================
 // App init and event wiring
 // =========================
@@ -830,6 +864,9 @@ function init() {
   });
   dom.signupBtn?.addEventListener("click", async () => {
     await handleSignup();
+  });
+  dom.resetPasswordBtn?.addEventListener("click", async () => {
+    await handlePasswordReset();
   });
   dom.logoutBtnApp.addEventListener("click", async () => {
     if (!state.db) return;
