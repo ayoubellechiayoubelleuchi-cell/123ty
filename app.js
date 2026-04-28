@@ -739,6 +739,7 @@ async function handlePasswordReset() {
 function bindAuthEvents() {
   if (state.authEventsBound) return;
   state.authEventsBound = true;
+  globalThis.__dailySalesAuthReady = true;
   dom.authForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     await handleLogin();
