@@ -724,6 +724,26 @@ async function handlePasswordReset() {
   }
 }
 
+function bindAuthEvents() {
+  dom.authForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await handleLogin();
+  });
+  dom.signupBtn?.addEventListener("click", async () => {
+    await handleSignup();
+  });
+  dom.resetPasswordBtn?.addEventListener("click", async () => {
+    await handlePasswordReset();
+  });
+  dom.logoutBtnApp?.addEventListener("click", async () => {
+    if (!state.db) return;
+    log("info", "logout_click", {});
+    await state.db.auth.signOut();
+    log("info", "logout_done", {});
+    await refreshSessionState();
+  });
+}
+
 // =========================
 // App init and event wiring
 // =========================
@@ -739,6 +759,15 @@ function init() {
     log("info", "supabase_client_created", { projectId: SUPABASE_PROJECT_ID });
   } else {
     log("warn", "supabase_client_not_created", { cfgError: cfgError || null, hasCreateClient: !!globalThis.supabase?.createClient });
+  }
+
+  // Bind auth actions early so login/signup buttons always work.
+  bindAuthEvents();
+  if (state.db) {
+    state.db.auth.onAuthStateChange(async () => {
+      log("info", "auth_state_change", {});
+      await refreshSessionState();
+    });
   }
 
   dom.debtFullyPaid.addEventListener("change", () => {
@@ -857,31 +886,6 @@ function init() {
     await deleteAllRemote();
     render();
   });
-
-  dom.authForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await handleLogin();
-  });
-  dom.signupBtn?.addEventListener("click", async () => {
-    await handleSignup();
-  });
-  dom.resetPasswordBtn?.addEventListener("click", async () => {
-    await handlePasswordReset();
-  });
-  dom.logoutBtnApp.addEventListener("click", async () => {
-    if (!state.db) return;
-    log("info", "logout_click", {});
-    await state.db.auth.signOut();
-    log("info", "logout_done", {});
-    await refreshSessionState();
-  });
-
-  if (state.db) {
-    state.db.auth.onAuthStateChange(async () => {
-      log("info", "auth_state_change", {});
-      await refreshSessionState();
-    });
-  }
 
   refreshAuthButtons();
   refreshSessionState();
