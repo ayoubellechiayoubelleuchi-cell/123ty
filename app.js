@@ -50,7 +50,10 @@ const dom = {
   appPage: document.getElementById("appPage"),
   authPage: document.getElementById("authPage"),
   authForm: document.getElementById("authForm"),
-  googleLoginBtn: document.getElementById("googleLoginBtn"),
+  emailInput: document.getElementById("emailInput"),
+  passwordInput: document.getElementById("passwordInput"),
+  loginBtn: document.getElementById("loginBtn"),
+  signupBtn: document.getElementById("signupBtn"),
   logoutBtnApp: document.getElementById("logoutBtnApp"),
   authStatus: document.getElementById("authStatus"),
   syncStatus: document.getElementById("syncStatus"),
@@ -157,8 +160,42 @@ function setAuthBusy(isBusy) {
 }
 
 function refreshAuthButtons() {
-  if (dom.googleLoginBtn) dom.googleLoginBtn.disabled = state.authBusy;
+  if (dom.loginBtn) dom.loginBtn.disabled = state.authBusy;
+  if (dom.signupBtn) dom.signupBtn.disabled = state.authBusy;
 }
+function getAuthEmail() {
+  return String(dom.emailInput?.value || "").trim().toLowerCase();
+}
+
+function getAuthPassword() {
+  return String(dom.passwordInput?.value || "");
+}
+
+function validateAuthInputs() {
+  const email = getAuthEmail();
+  const password = getAuthPassword();
+  const emailRegex = /^[^\s@]+@gmail\.com$/i;
+  if (!emailRegex.test(email)) return { ok: false, message: "أدخل Gmail صحيح." };
+  if (password.length < 6) return { ok: false, message: "كلمة المرور لازم تكون 6 أحرف على الأقل." };
+  return { ok: true, message: "" };
+}
+
+function formatAuthError(error, actionLabel) {
+  if (!error) return `${actionLabel} فشل لسبب غير معروف.`;
+  const details = [error.message].filter(Boolean).join(" | ");
+  const msg = String(error.message || "").toLowerCase();
+  if (error.status === 429) return `تم تجاوز عدد المحاولات. انتظر قليلًا ثم حاول مجددًا. (${details})`;
+  if (msg.includes("invalid login credentials")) return "بيانات الدخول غير صحيحة.";
+  if (msg.includes("email not confirmed")) return "الحساب يحتاج تأكيد البريد من إعدادات Supabase.";
+  if (error.status === 400) return `${actionLabel} فشل: تحقق من Gmail/كلمة المرور. (${details})`;
+  return `${actionLabel} فشل: ${details}`;
+}
+
+function isUserAlreadyRegisteredError(error) {
+  const msg = String(error?.message || "").toLowerCase();
+  return msg.includes("user already registered");
+}
+
 
 function setPageMode(isLoggedIn) {
   dom.appPage.classList.toggle("hidden", !isLoggedIn);
@@ -548,23 +585,50 @@ async function refreshSessionState() {
   log("info", "session_refresh_done", { records: state.records.length });
 }
 
-async function handleGoogleLogin() {
+async function handleLogin() {
   if (!state.db || state.authBusy) return;
+  const validation = validateAuthInputs();
+  if (!validation.ok) return setAuthStatus(validation.message, false);
+  const email = getAuthEmail();
+  const password = getAuthPassword();
+  log("info", "login_attempt", { email: safeEmailForLog(email) });
   setAuthBusy(true);
   try {
-    const redirectTo = `${globalThis.location.origin}${globalThis.location.pathname}`;
-    const { error } = await state.db.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo }
-    });
+    const { error } = await state.db.auth.signInWithPassword({ email, password });
     if (error) {
-      log("warn", "google_oauth_failed", { message: error.message, status: error.status, code: error.code });
-      setAuthStatus(`فشل الربط مع Google: ${error.message}`, false);
+      log("warn", "login_failed", { message: error.message, status: error.status, code: error.code });
+      setAuthStatus(formatAuthError(error, "تسجيل الدخول"), false);
       return;
     }
-    setAuthStatus("جارٍ تحويلك إلى Google...", true);
+    await refreshSessionState();
   } catch (err) {
-    setAuthStatus(`تعذر بدء دخول Google: ${err?.message || "خطأ غير معروف"}`, false);
+    setAuthStatus(`تعذر تسجيل الدخول: ${err?.message || "خطأ غير معروف"}`, false);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function handleSignup() {
+  if (!state.db || state.authBusy) return;
+  const validation = validateAuthInputs();
+  if (!validation.ok) return setAuthStatus(validation.message, false);
+  const email = getAuthEmail();
+  const password = getAuthPassword();
+  log("info", "signup_attempt", { email: safeEmailForLog(email) });
+  setAuthBusy(true);
+  try {
+    const { error } = await state.db.auth.signUp({ email, password, options: { data: { email } } });
+    if (error) {
+      if (isUserAlreadyRegisteredError(error)) {
+        setAuthStatus("الحساب موجود بالفعل. استعمل زر دخول.", false);
+        return;
+      }
+      setAuthStatus(formatAuthError(error, "إنشاء الحساب"), false);
+      return;
+    }
+    setAuthStatus("تم إنشاء الحساب. الآن اضغط دخول.", true);
+  } catch (err) {
+    setAuthStatus(`تعذر إنشاء الحساب: ${err?.message || "خطأ غير معروف"}`, false);
   } finally {
     setAuthBusy(false);
   }
@@ -627,7 +691,7 @@ function init() {
 
   dom.form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!state.currentUser) return alert("سجّل الدخول بالاسم أولًا.");
+    if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
     const unpaidStr = dom.fields.unpaidAmount.value.trim();
     const unpaidRaw = unpaidStr === "" ? 0 : Number(unpaidStr);
     const unpaidEffective = dom.debtFullyPaid.checked ? 0 : unpaidRaw;
@@ -669,7 +733,7 @@ function init() {
 
   dom.ideaForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!state.currentUser) return alert("سجّل الدخول بالاسم أولًا.");
+    if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
     const base = {
       name: dom.ideaFields.name.value.trim(),
       description: dom.ideaFields.description.value.trim(),
@@ -706,10 +770,12 @@ function init() {
     render();
   });
 
-  dom.authForm?.addEventListener("submit", (event) => event.preventDefault());
-  dom.googleLoginBtn?.addEventListener("click", async () => {
-    log("info", "google_login_click", {});
-    await handleGoogleLogin();
+  dom.authForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await handleLogin();
+  });
+  dom.signupBtn?.addEventListener("click", async () => {
+    await handleSignup();
   });
   dom.logoutBtnApp.addEventListener("click", async () => {
     if (!state.db) return;
