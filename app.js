@@ -601,7 +601,11 @@ async function refreshSessionState() {
 }
 
 async function handleLogin() {
-  if (!state.db || state.authBusy) return;
+  if (!state.db) {
+    setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
+    return;
+  }
+  if (state.authBusy) return;
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
   const { email, password } = getAuthCredentials();
@@ -642,7 +646,11 @@ async function handleLogin() {
 }
 
 async function handleSignup() {
-  if (!state.db || state.authBusy) return;
+  if (!state.db) {
+    setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
+    return;
+  }
+  if (state.authBusy) return;
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
   const { email, password } = getAuthCredentials();
