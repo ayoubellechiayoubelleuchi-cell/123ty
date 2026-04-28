@@ -10,10 +10,14 @@ const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hdnF2bGptaXB6aGVxam1semd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTAzNzQsImV4cCI6MjA5MjM2NjM3NH0.xDeyeaAhcyjuLEWUOfDRQKdjDUDiQNfw6UMlcdm5n2k";
 const SUPABASE_TABLE = "sales_records";
-const isFileProtocol = globalThis.location?.protocol === "file:";
 
 const LOG_PREFIX = "[daily-sales]";
-const APP_VERSION = "2026-04-27-bridge-1";
+const AUTH_MESSAGES = {
+  invalidGmail: "أدخل Gmail صحيح.",
+  shortPassword: "كلمة المرور لازم تكون 6 أحرف على الأقل.",
+  wrongPassword: "كلمة المرور خاطئة لهذا الحساب.",
+  accountExistsUseLogin: "الحساب موجود بالفعل. استعمل زر دخول."
+};
 
 // =========================
 // Logging helpers
@@ -31,11 +35,6 @@ function safeEmailForLog(email) {
   const at = e.indexOf("@");
   if (at <= 1) return e ? `${e[0]}***` : "";
   return `${e[0]}***@${e.slice(at + 1)}`;
-}
-
-function safeAnonMetaForLog() {
-  const p = parseJwtPayload(SUPABASE_ANON_KEY);
-  return { ref: p?.ref, role: p?.role, iat: p?.iat, exp: p?.exp };
 }
 
 const dom = {
@@ -163,6 +162,10 @@ function refreshAuthButtons() {
   if (dom.loginBtn) dom.loginBtn.disabled = state.authBusy;
   if (dom.signupBtn) dom.signupBtn.disabled = state.authBusy;
 }
+
+// =========================
+// Auth helpers
+// =========================
 function getAuthEmail() {
   return String(dom.emailInput?.value || "").trim().toLowerCase();
 }
@@ -171,12 +174,15 @@ function getAuthPassword() {
   return String(dom.passwordInput?.value || "");
 }
 
+function getAuthCredentials() {
+  return { email: getAuthEmail(), password: getAuthPassword() };
+}
+
 function validateAuthInputs() {
-  const email = getAuthEmail();
-  const password = getAuthPassword();
+  const { email, password } = getAuthCredentials();
   const emailRegex = /^[^\s@]+@gmail\.com$/i;
-  if (!emailRegex.test(email)) return { ok: false, message: "أدخل Gmail صحيح." };
-  if (password.length < 6) return { ok: false, message: "كلمة المرور لازم تكون 6 أحرف على الأقل." };
+  if (!emailRegex.test(email)) return { ok: false, message: AUTH_MESSAGES.invalidGmail };
+  if (password.length < 6) return { ok: false, message: AUTH_MESSAGES.shortPassword };
   return { ok: true, message: "" };
 }
 
@@ -194,6 +200,15 @@ function formatAuthError(error, actionLabel) {
 function isUserAlreadyRegisteredError(error) {
   const msg = String(error?.message || "").toLowerCase();
   return msg.includes("user already registered");
+}
+
+function isInvalidCredentialsError(error) {
+  const msg = String(error?.message || "").toLowerCase();
+  return msg.includes("invalid login credentials") || msg.includes("invalid_credentials");
+}
+
+async function signUpWithEmailPassword(email, password) {
+  return state.db.auth.signUp({ email, password, options: { data: { email } } });
 }
 
 
@@ -589,18 +604,15 @@ async function handleLogin() {
   if (!state.db || state.authBusy) return;
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
-  const email = getAuthEmail();
-  const password = getAuthPassword();
+  const { email, password } = getAuthCredentials();
   log("info", "login_attempt", { email: safeEmailForLog(email) });
   setAuthBusy(true);
   try {
     let { error } = await state.db.auth.signInWithPassword({ email, password });
     if (error) {
-      const msg = String(error.message || "").toLowerCase();
-      const isInvalidCreds = msg.includes("invalid login credentials") || msg.includes("invalid_credentials");
-      if (isInvalidCreds) {
+      if (isInvalidCredentialsError(error)) {
         log("warn", "login_invalid_try_signup", { email: safeEmailForLog(email) });
-        const signupRes = await state.db.auth.signUp({ email, password, options: { data: { email } } });
+        const signupRes = await signUpWithEmailPassword(email, password);
         const signupErr = signupRes.error;
         if (!signupErr) {
           log("info", "login_created_new_user", { email: safeEmailForLog(email) });
@@ -608,7 +620,7 @@ async function handleLogin() {
         } else {
           const signupMsg = String(signupErr.message || "").toLowerCase();
           if (signupMsg.includes("user already registered")) {
-            setAuthStatus("كلمة المرور خاطئة لهذا الحساب.", false);
+            setAuthStatus(AUTH_MESSAGES.wrongPassword, false);
             return;
           }
           setAuthStatus(formatAuthError(signupErr, "إنشاء الحساب"), false);
@@ -633,15 +645,14 @@ async function handleSignup() {
   if (!state.db || state.authBusy) return;
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
-  const email = getAuthEmail();
-  const password = getAuthPassword();
+  const { email, password } = getAuthCredentials();
   log("info", "signup_attempt", { email: safeEmailForLog(email) });
   setAuthBusy(true);
   try {
-    const { error } = await state.db.auth.signUp({ email, password, options: { data: { email } } });
+    const { error } = await signUpWithEmailPassword(email, password);
     if (error) {
       if (isUserAlreadyRegisteredError(error)) {
-        setAuthStatus("الحساب موجود بالفعل. استعمل زر دخول.", false);
+        setAuthStatus(AUTH_MESSAGES.accountExistsUseLogin, false);
         return;
       }
       setAuthStatus(formatAuthError(error, "إنشاء الحساب"), false);
@@ -668,9 +679,7 @@ function init() {
   log("info", "init_start", {
     projectId: SUPABASE_PROJECT_ID,
     url: SUPABASE_URL,
-    table: SUPABASE_TABLE,
-    anonJwtMeta: safeAnonMetaForLog(),
-    isFileProtocol
+    table: SUPABASE_TABLE
   });
   const cfgError = validateSupabaseConfig();
   if (globalThis.supabase?.createClient && !cfgError) {
@@ -822,7 +831,7 @@ function init() {
   refreshAuthButtons();
   refreshSessionState();
   renderIdeasPreview();
-  log("info", "init_done", { appVersion: APP_VERSION });
+  log("info", "init_done", {});
 }
 
 function bootstrap() {
