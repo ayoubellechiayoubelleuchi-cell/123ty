@@ -196,6 +196,12 @@ function isUserAlreadyRegisteredError(error) {
   return msg.includes("user already registered");
 }
 
+async function sendOtpLoginLink(email) {
+  const emailRedirectTo = `${globalThis.location.origin}${globalThis.location.pathname}`;
+  const { error } = await state.db.auth.signInWithOtp({ email, options: { emailRedirectTo } });
+  return error || null;
+}
+
 
 function setPageMode(isLoggedIn) {
   dom.appPage.classList.toggle("hidden", !isLoggedIn);
@@ -594,7 +600,33 @@ async function handleLogin() {
   log("info", "login_attempt", { email: safeEmailForLog(email) });
   setAuthBusy(true);
   try {
-    const { error } = await state.db.auth.signInWithPassword({ email, password });
+    let { error } = await state.db.auth.signInWithPassword({ email, password });
+    if (error) {
+      const msg = String(error.message || "").toLowerCase();
+      const isInvalidCreds = msg.includes("invalid login credentials") || msg.includes("invalid_credentials");
+      if (isInvalidCreds) {
+        log("warn", "login_invalid_try_signup", { email: safeEmailForLog(email) });
+        const signupRes = await state.db.auth.signUp({ email, password, options: { data: { email } } });
+        const signupErr = signupRes.error;
+        if (!signupErr) {
+          log("info", "login_created_new_user", { email: safeEmailForLog(email) });
+          ({ error } = await state.db.auth.signInWithPassword({ email, password }));
+        } else {
+          const signupMsg = String(signupErr.message || "").toLowerCase();
+          if (signupMsg.includes("user already registered")) {
+            const otpError = await sendOtpLoginLink(email);
+            if (otpError) {
+              setAuthStatus("بيانات الدخول غير صحيحة. تأكد من كلمة المرور لهذا الحساب.", false);
+            } else {
+              setAuthStatus("كلمة المرور غير صحيحة. أرسلنا رابط دخول إلى Gmail الخاص بك.", true);
+            }
+            return;
+          }
+          setAuthStatus(formatAuthError(signupErr, "إنشاء الحساب"), false);
+          return;
+        }
+      }
+    }
     if (error) {
       log("warn", "login_failed", { message: error.message, status: error.status, code: error.code });
       setAuthStatus(formatAuthError(error, "تسجيل الدخول"), false);
