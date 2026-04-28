@@ -647,7 +647,13 @@ async function handleSignup() {
       setAuthStatus(formatAuthError(error, "إنشاء الحساب"), false);
       return;
     }
-    setAuthStatus("تم إنشاء الحساب. الآن اضغط دخول.", true);
+    // Auto-login right after signup to avoid forcing extra manual step.
+    const loginAfterSignup = await state.db.auth.signInWithPassword({ email, password });
+    if (loginAfterSignup.error) {
+      setAuthStatus(formatAuthError(loginAfterSignup.error, "تسجيل الدخول بعد إنشاء الحساب"), false);
+      return;
+    }
+    await refreshSessionState();
   } catch (err) {
     setAuthStatus(`تعذر إنشاء الحساب: ${err?.message || "خطأ غير معروف"}`, false);
   } finally {
