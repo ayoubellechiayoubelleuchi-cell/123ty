@@ -94,7 +94,8 @@ const state = {
   currentUser: null,
   records: [],
   ideas: [],
-  authBusy: false
+  authBusy: false,
+  authEventsBound: false
 };
 
 // =========================
@@ -163,6 +164,17 @@ function refreshAuthButtons() {
   if (dom.loginBtn) dom.loginBtn.disabled = state.authBusy;
   if (dom.signupBtn) dom.signupBtn.disabled = state.authBusy;
   if (dom.resetPasswordBtn) dom.resetPasswordBtn.disabled = state.authBusy;
+}
+
+function ensureSupabaseClient() {
+  if (state.db) return true;
+  const cfgError = validateSupabaseConfig();
+  if (!globalThis.supabase?.createClient || cfgError) {
+    log("warn", "supabase_client_unavailable", { cfgError: cfgError || null, hasCreateClient: !!globalThis.supabase?.createClient });
+    return false;
+  }
+  state.db = globalThis.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return true;
 }
 
 // =========================
@@ -610,7 +622,7 @@ async function refreshSessionState() {
 }
 
 async function handleLogin() {
-  if (!state.db) {
+  if (!ensureSupabaseClient()) {
     setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
     return;
   }
@@ -655,7 +667,7 @@ async function handleLogin() {
 }
 
 async function handleSignup() {
-  if (!state.db) {
+  if (!ensureSupabaseClient()) {
     setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
     return;
   }
@@ -700,7 +712,7 @@ async function handleSignup() {
 }
 
 async function handlePasswordReset() {
-  if (!state.db) {
+  if (!ensureSupabaseClient()) {
     setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
     return;
   }
@@ -725,6 +737,8 @@ async function handlePasswordReset() {
 }
 
 function bindAuthEvents() {
+  if (state.authEventsBound) return;
+  state.authEventsBound = true;
   dom.authForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     await handleLogin();
@@ -753,11 +767,11 @@ function init() {
     url: SUPABASE_URL,
     table: SUPABASE_TABLE
   });
-  const cfgError = validateSupabaseConfig();
-  if (globalThis.supabase?.createClient && !cfgError) {
-    state.db = globalThis.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const hasDb = ensureSupabaseClient();
+  if (hasDb) {
     log("info", "supabase_client_created", { projectId: SUPABASE_PROJECT_ID });
   } else {
+    const cfgError = validateSupabaseConfig();
     log("warn", "supabase_client_not_created", { cfgError: cfgError || null, hasCreateClient: !!globalThis.supabase?.createClient });
   }
 
@@ -894,6 +908,8 @@ function init() {
 }
 
 function bootstrap() {
+  // Always bind auth buttons first, even if init later hits an error.
+  bindAuthEvents();
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init, { once: true });
     return;
