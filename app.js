@@ -306,6 +306,10 @@ function readStoredSessionTokens() {
 
 
 function setPageMode(isLoggedIn) {
+  // Reset any inline display overrides first.
+  if (dom.appPage) dom.appPage.style.display = "";
+  if (dom.authPage) dom.authPage.style.display = "";
+
   dom.appPage.classList.toggle("hidden", !isLoggedIn);
   dom.authPage.classList.toggle("hidden", isLoggedIn);
   if (dom.appPage.classList.contains("hidden") && dom.authPage.classList.contains("hidden")) {
