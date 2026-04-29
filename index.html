@@ -342,7 +342,6 @@
   <div class="container">
     <div class="card" id="authPage">
       <h2 style="margin:0 0 8px">تسجيل الدخول بـ Gmail</h2>
-      <p>إنشاء الحساب وتسجيل الدخول يكونان عبر Gmail وكلمة مرور تختارها أنت (بدون ربط Google).</p>
       <div class="auth-box">
         <form id="authForm" autocomplete="on">
           <div class="grid">
@@ -550,20 +549,18 @@
     <div class="insights-grid">
       <div class="mini-card">
         <h3>نظرة سريعة</h3>
-        <div class="donut-demo"></div>
-        <div class="hint" style="text-align:center">توزيع مبسط للمبيعات والربح والاستثمار.</div>
+        <div class="donut-demo" id="insightDonut"></div>
+        <div class="hint" id="insightDonutHint" style="text-align:center">توزيع مبسط للمبيعات والربح والاستثمار.</div>
       </div>
       <div class="mini-card">
         <h3>تطور المبيعات (آخر 7 أيام)</h3>
-        <div class="line-demo"></div>
-        <div class="hint" style="text-align:center;margin-top:8px">عرض تقريبي، وسيتم ربطه ببياناتك الفعلية لاحقًا.</div>
+        <div class="line-demo" id="insightLine"></div>
+        <div class="hint" id="insightLineHint" style="text-align:center;margin-top:8px">عرض تقريبي، وسيتم ربطه ببياناتك الفعلية لاحقًا.</div>
       </div>
       <div class="mini-card">
         <h3>أفضل الأفكار</h3>
-        <div class="rank-list">
-          <div class="rank-item"><span>فكرة #1</span><strong>🏅</strong></div>
-          <div class="rank-item"><span>فكرة #2</span><strong>🥈</strong></div>
-          <div class="rank-item"><span>فكرة #3</span><strong>🥉</strong></div>
+        <div class="rank-list" id="bestIdeasList">
+          <div class="rank-item"><span>لا توجد أفكار كافية بعد</span><strong>—</strong></div>
         </div>
       </div>
     </div>

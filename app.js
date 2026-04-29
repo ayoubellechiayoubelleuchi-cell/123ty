@@ -90,6 +90,13 @@ const dom = {
     currentCapitalEl: document.getElementById("currentCapital"),
     totalUnpaidEl: document.getElementById("totalUnpaid"),
     totalPaidEl: document.getElementById("totalPaid")
+  },
+  insights: {
+    donutEl: document.getElementById("insightDonut"),
+    donutHintEl: document.getElementById("insightDonutHint"),
+    lineEl: document.getElementById("insightLine"),
+    lineHintEl: document.getElementById("insightLineHint"),
+    bestIdeasListEl: document.getElementById("bestIdeasList")
   }
 };
 
@@ -437,7 +444,6 @@ function normalizeRecordsStep2(list) {
 
 function loadRecords() {
   try {
-    if (!state.currentUser) return [];
     let raw = localStorage.getItem(userStorageKey());
     if (!raw) raw = localStorage.getItem(backupStorageKey());
     if (!raw) raw = localStorage.getItem(STORAGE_KEY);
@@ -452,7 +458,6 @@ function loadRecords() {
 }
 
 function saveRecords() {
-  if (!state.currentUser) return;
   const payload = JSON.stringify(state.records);
   localStorage.setItem(userStorageKey(), payload);
   localStorage.setItem(backupStorageKey(), payload);
@@ -461,7 +466,6 @@ function saveRecords() {
 
 function loadIdeas() {
   try {
-    if (!state.currentUser) return [];
     let raw = localStorage.getItem(userIdeasStorageKey());
     if (!raw) raw = localStorage.getItem(backupIdeasStorageKey());
     if (!raw) raw = localStorage.getItem(IDEAS_STORAGE_KEY);
@@ -476,7 +480,6 @@ function loadIdeas() {
 }
 
 function saveIdeas() {
-  if (!state.currentUser) return;
   const payload = JSON.stringify(state.ideas);
   localStorage.setItem(userIdeasStorageKey(), payload);
   localStorage.setItem(backupIdeasStorageKey(), payload);
@@ -691,6 +694,67 @@ function renderIdeas() {
     dom.ideaRowsContainer.appendChild(tr);
   }
   dom.ideasEmptyState.style.display = state.ideas.length === 0 ? "block" : "none";
+  renderInsights();
+}
+
+function renderInsights() {
+  if (!dom.insights.donutEl || !dom.insights.lineEl || !dom.insights.bestIdeasListEl) return;
+
+  // 1) Donut: paid / unpaid / reinvest distribution from actual records.
+  const totalSales = state.records.reduce((acc, r) => acc + (Number(r.totalSale) || 0), 0);
+  const totalUnpaid = state.records.reduce((acc, r) => acc + remainingUnpaid(r), 0);
+  const totalPaid = Math.max(0, totalSales - totalUnpaid);
+  const totalReinvest = state.records.reduce((acc, r) => acc + (Number(r.reinvest) || 0), 0);
+  const donutBase = totalPaid + totalUnpaid + totalReinvest;
+  if (donutBase > 0) {
+    const pPaid = (totalPaid / donutBase) * 100;
+    const pUnpaid = (totalUnpaid / donutBase) * 100;
+    const pReinvest = Math.max(0, 100 - pPaid - pUnpaid);
+    dom.insights.donutEl.style.background = `conic-gradient(#2ed69a 0 ${pPaid}%, #ff6f8f ${pPaid}% ${pPaid + pUnpaid}%, #f0c45e ${pPaid + pUnpaid}% 100%)`;
+    dom.insights.donutHintEl.textContent = `محصّل: ${currency(totalPaid)} | غير مدفوع: ${currency(totalUnpaid)} | استثمار: ${currency(totalReinvest)}`;
+  } else {
+    dom.insights.donutEl.style.background = "conic-gradient(#2e3f66 0 100%)";
+    dom.insights.donutHintEl.textContent = "لا توجد بيانات مبيعات بعد.";
+  }
+
+  // 2) Line: last 7 days sales trend (real records).
+  const salesByDay = new Map();
+  for (const r of state.records) {
+    const key = String(r.date || "").trim();
+    if (!key) continue;
+    salesByDay.set(key, (salesByDay.get(key) || 0) + (Number(r.totalSale) || 0));
+  }
+  const dayEntries = [...salesByDay.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]))).slice(-7);
+  if (dayEntries.length >= 2) {
+    const values = dayEntries.map(([, v]) => v);
+    const maxV = Math.max(...values, 1);
+    const points = values
+      .map((v, i) => {
+        const x = (i / (values.length - 1)) * 100;
+        const y = 100 - (v / maxV) * 100;
+        return `${x},${y}`;
+      })
+      .join(" ");
+    dom.insights.lineEl.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%"><polyline points="${points}" fill="none" stroke="#68b9ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const latest = dayEntries[dayEntries.length - 1][1];
+    dom.insights.lineHintEl.textContent = `آخر يوم: ${currency(latest)} | أعلى يوم: ${currency(maxV)}`;
+  } else {
+    dom.insights.lineEl.innerHTML = "";
+    dom.insights.lineHintEl.textContent = "أضف مبيعات لأيام متعددة لعرض التطور.";
+  }
+
+  // 3) Top ideas: actual top 3 by expected profit.
+  const topIdeas = [...state.ideas]
+    .sort((a, b) => (Number(b.expectedProfit) || 0) - (Number(a.expectedProfit) || 0))
+    .slice(0, 3);
+  if (topIdeas.length === 0) {
+    dom.insights.bestIdeasListEl.innerHTML = `<div class="rank-item"><span>لا توجد أفكار كافية بعد</span><strong>—</strong></div>`;
+  } else {
+    const medals = ["🏅", "🥈", "🥉"];
+    dom.insights.bestIdeasListEl.innerHTML = topIdeas
+      .map((idea, idx) => `<div class="rank-item"><span>${escapeHtml(String(idea.name || `فكرة #${idx + 1}`))}</span><strong>${medals[idx]} ${currency(Number(idea.expectedProfit) || 0)}</strong></div>`)
+      .join("");
+  }
 }
 
 // =========================
@@ -856,10 +920,23 @@ function bindAuthEvents() {
     await handlePasswordReset();
   });
   dom.logoutBtnApp?.addEventListener("click", async () => {
-    if (!state.db) return;
     authTrace("event:click_logout", {});
-    await state.db.auth.signOut();
-    await refreshSessionState();
+    // Always logout locally first so the button never appears "stuck".
+    state.currentUser = null;
+    state.records = [];
+    state.ideas = [];
+    render();
+    renderIdeas();
+    setPageMode(false);
+    setAppEnabled(false);
+    setAuthStatus("تم تسجيل الخروج.", true);
+
+    try {
+      if (!state.db) ensureSupabaseClient();
+      if (state.db) await state.db.auth.signOut();
+    } catch (err) {
+      authTrace("logout:signout_error", { message: err?.message || "unknown" });
+    }
   });
 }
 
@@ -949,16 +1026,6 @@ function init() {
 
   dom.form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!state.currentUser) {
-      await refreshSessionState();
-      if (!state.currentUser) {
-        setSyncStatus("تعذر إضافة العملية: الجلسة منتهية. سجّل الدخول ثم أعد المحاولة.", false);
-        setAuthStatus("انتهت الجلسة. سجّل الدخول من جديد.", false);
-        setPageMode(false);
-        setAppEnabled(false);
-        return;
-      }
-    }
     const unpaidStr = dom.fields.unpaidAmount.value.trim();
     const unpaidRaw = unpaidStr === "" ? 0 : Number(unpaidStr);
     const unpaidEffective = dom.debtFullyPaid.checked ? 0 : unpaidRaw;
