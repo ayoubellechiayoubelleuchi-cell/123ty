@@ -15,8 +15,7 @@ const LOG_PREFIX = "[daily-sales]";
 const AUTH_MESSAGES = {
   invalidGmail: "أدخل Gmail صحيح.",
   shortPassword: "كلمة المرور لازم تكون 6 أحرف على الأقل.",
-  wrongPassword: "كلمة المرور خاطئة لهذا الحساب.",
-  accountExistsUseLogin: "الحساب موجود بالفعل. استعمل زر دخول."
+  wrongPassword: "كلمة المرور خاطئة لهذا الحساب."
 };
 
 // =========================
@@ -28,6 +27,11 @@ function log(level, event, data) {
   if (level === "error") console.error(line, payload);
   else if (level === "warn") console.warn(line, payload);
   else console.info(line, payload);
+}
+
+function authTrace(step, data) {
+  const payload = data === undefined ? "" : data;
+  console.info(`[auth-trace] ${step}`, payload);
 }
 
 function safeEmailForLog(email) {
@@ -98,6 +102,20 @@ const state = {
   authEventsBound: false
 };
 
+function showFatalUiError(message) {
+  if (!dom.authStatus) return;
+  dom.authStatus.textContent = `عطل JavaScript: ${message}`;
+  dom.authStatus.classList.remove("ok");
+}
+
+if (!globalThis.__dailySalesGlobalErrorBound) {
+  globalThis.__dailySalesGlobalErrorBound = true;
+  globalThis.addEventListener("error", (event) => {
+    const message = event?.error?.message || event?.message || "خطأ غير معروف";
+    showFatalUiError(message);
+  });
+}
+
 // =========================
 // Supabase config validation
 // =========================
@@ -167,13 +185,16 @@ function refreshAuthButtons() {
 }
 
 function ensureSupabaseClient() {
+  authTrace("ensure_client:start", { hasExistingDb: !!state.db });
   if (state.db) return true;
   const cfgError = validateSupabaseConfig();
   if (!globalThis.supabase?.createClient || cfgError) {
+    authTrace("ensure_client:failed", { cfgError: cfgError || null, hasCreateClient: !!globalThis.supabase?.createClient });
     log("warn", "supabase_client_unavailable", { cfgError: cfgError || null, hasCreateClient: !!globalThis.supabase?.createClient });
     return false;
   }
   state.db = globalThis.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  authTrace("ensure_client:ok", { projectId: SUPABASE_PROJECT_ID });
   return true;
 }
 
@@ -194,16 +215,29 @@ function getAuthCredentials() {
 
 function validateAuthInputs() {
   const { email, password } = getAuthCredentials();
+  authTrace("validate_auth_inputs", { emailMasked: safeEmailForLog(email), passwordLength: password.length });
   const emailRegex = /^[^\s@]+@gmail\.com$/i;
-  if (!emailRegex.test(email)) return { ok: false, message: AUTH_MESSAGES.invalidGmail };
-  if (password.length < 6) return { ok: false, message: AUTH_MESSAGES.shortPassword };
+  if (!emailRegex.test(email)) {
+    authTrace("validate_auth_inputs:invalid_email", { emailMasked: safeEmailForLog(email) });
+    return { ok: false, message: AUTH_MESSAGES.invalidGmail };
+  }
+  if (password.length < 6) {
+    authTrace("validate_auth_inputs:short_password", { passwordLength: password.length });
+    return { ok: false, message: AUTH_MESSAGES.shortPassword };
+  }
+  authTrace("validate_auth_inputs:ok", {});
   return { ok: true, message: "" };
 }
 
 function validateEmailOnly() {
   const email = getAuthEmail();
+  authTrace("validate_email_only", { emailMasked: safeEmailForLog(email) });
   const emailRegex = /^[^\s@]+@gmail\.com$/i;
-  if (!emailRegex.test(email)) return { ok: false, message: AUTH_MESSAGES.invalidGmail };
+  if (!emailRegex.test(email)) {
+    authTrace("validate_email_only:invalid_email", { emailMasked: safeEmailForLog(email) });
+    return { ok: false, message: AUTH_MESSAGES.invalidGmail };
+  }
+  authTrace("validate_email_only:ok", {});
   return { ok: true, message: "" };
 }
 
@@ -218,18 +252,32 @@ function formatAuthError(error, actionLabel) {
   return `${actionLabel} فشل: ${details}`;
 }
 
+function parseRetryAfterSeconds(error) {
+  const msg = String(error?.message || "");
+  const m = msg.match(/after\s+(\d+)\s+seconds?/i);
+  return m ? Number(m[1]) : 0;
+}
+
+function formatRateLimitMessage(error) {
+  const sec = parseRetryAfterSeconds(error);
+  if (sec > 0) return `تم تجاوز عدد المحاولات. انتظر ${sec} ثانية ثم حاول مجددًا.`;
+  return "تم تجاوز عدد المحاولات. انتظر قليلًا ثم حاول مجددًا.";
+}
+
 function isUserAlreadyRegisteredError(error) {
   const msg = String(error?.message || "").toLowerCase();
   return msg.includes("user already registered");
 }
 
-function isInvalidCredentialsError(error) {
-  const msg = String(error?.message || "").toLowerCase();
-  return msg.includes("invalid login credentials") || msg.includes("invalid_credentials");
+async function signUpWithEmailPassword(email, password) {
+  authTrace("sign_up_api:start", { emailMasked: safeEmailForLog(email), passwordLength: String(password || "").length });
+  return state.db.auth.signUp({ email, password, options: { data: { email } } });
 }
 
-async function signUpWithEmailPassword(email, password) {
-  return state.db.auth.signUp({ email, password, options: { data: { email } } });
+function getPasswordResetOptions() {
+  // When running from file://, redirect URL is invalid for Supabase and blocks reset emails.
+  if (globalThis.location?.protocol === "file:") return {};
+  return { redirectTo: `${globalThis.location.origin}${globalThis.location.pathname}` };
 }
 
 
@@ -241,10 +289,61 @@ function setPageMode(isLoggedIn) {
   }
 }
 
+function forceShowApp() {
+  // Hard fallback to avoid being stuck on auth screen.
+  if (dom.appPage) {
+    dom.appPage.classList.remove("hidden");
+    dom.appPage.style.display = "";
+  }
+  if (dom.authPage) {
+    dom.authPage.classList.add("hidden");
+    dom.authPage.style.display = "none";
+  }
+}
+
 function setAppEnabled(enabled) {
   for (const el of dom.form.querySelectorAll("input, textarea, button")) el.disabled = !enabled;
   for (const btn of dom.rowsContainer.querySelectorAll("button[data-debt-paid]")) btn.disabled = !enabled;
   dom.resetBtn.disabled = !enabled;
+}
+
+async function activateAppForUser(user, statusSuffix = "") {
+  authTrace("activate_app:start", { userId: user?.id || null, statusSuffix });
+  if (!user) return;
+  state.currentUser = user;
+
+  // Open app UI immediately after successful auth.
+  setPageMode(true);
+  forceShowApp();
+  setAppEnabled(true);
+  setAuthStatus(`تم تسجيل الدخول: ${state.currentUser.phone || state.currentUser.id}${statusSuffix}`, true);
+
+  try {
+    const local = loadRecords();
+    state.ideas = loadIdeas();
+    const remote = await loadRecordsFromRemote();
+    authTrace("activate_app:data_loaded", { localCount: local.length, remoteCount: remote.length, ideasCount: state.ideas.length });
+    if (remote.length === 0 && local.length > 0) {
+      await upsertManyRemote(local);
+      state.records = local;
+      authTrace("activate_app:using_local_and_uploaded", { count: local.length });
+    } else {
+      state.records = remote;
+      authTrace("activate_app:using_remote", { count: remote.length });
+    }
+    saveRecords();
+    render();
+    renderIdeas();
+    renderIdeasPreview();
+    authTrace("activate_app:ui_synced", { records: state.records.length });
+  } catch (err) {
+    authTrace("activate_app:sync_error", { message: err?.message || "unknown" });
+    // Keep user inside app even if sync fails.
+    render();
+    renderIdeas();
+    renderIdeasPreview();
+    setSyncStatus(`تعذر مزامنة بعض البيانات: ${err?.message || "خطأ غير معروف"}`, false);
+  }
 }
 
 // =========================
@@ -565,196 +664,154 @@ function renderIdeas() {
 // Auth flow
 // =========================
 async function refreshSessionState() {
-  log("info", "session_refresh_start", {
-    protocol: globalThis.location?.protocol,
-    href: globalThis.location?.href,
-    hasDb: !!state.db
-  });
+  authTrace("refresh_session:start", { hasDb: !!state.db });
   if (!state.db) {
     const cfgError = validateSupabaseConfig();
-    log("warn", "supabase_client_missing", { cfgError: cfgError || null });
     setAuthStatus(cfgError || "تعذر تهيئة Supabase Auth.", false);
     setPageMode(false);
     setAppEnabled(false);
     return;
   }
 
-  log("info", "auth_get_session_start", {});
   const { data, error } = await state.db.auth.getSession();
   if (error) {
-    log("warn", "auth_get_session_error", { message: error.message, status: error.status, code: error.code });
-    await state.db.auth.signOut();
-    setAuthStatus(`تمت إعادة ضبط الجلسة تلقائيًا: ${error.message}`, false);
+    authTrace("refresh_session:get_session_error", { message: error.message, status: error.status || null, code: error.code || null });
+    setAuthStatus(`فشل قراءة الجلسة: ${error.message}`, false);
+    setPageMode(false);
+    setAppEnabled(false);
+    return;
   }
-  state.currentUser = data.session?.user ?? null;
-  log("info", "auth_get_session_result", { userId: state.currentUser?.id || null, hasSession: !!data.session });
 
+  state.currentUser = data.session?.user ?? null;
   if (!state.currentUser) {
-    setAuthStatus("", false);
+    authTrace("refresh_session:no_user", {});
     state.records = [];
     state.ideas = [];
     render();
     renderIdeas();
     setPageMode(false);
     setAppEnabled(false);
+    setAuthStatus("أدخل Gmail وكلمة المرور ثم اضغط دخول.", false);
     return;
   }
 
-  const local = loadRecords();
-  state.ideas = loadIdeas();
-  const remote = await loadRecordsFromRemote();
-  log("info", "merge_records", { localCount: local.length, remoteCount: remote.length });
-  if (remote.length === 0 && local.length > 0) {
-    await upsertManyRemote(local);
-    state.records = local;
-    setAuthStatus(`تم تسجيل الدخول: ${state.currentUser.phone || state.currentUser.id} (تم رفع البيانات المحلية).`, true);
-  } else {
-    state.records = remote;
-    setAuthStatus(`تم تسجيل الدخول: ${state.currentUser.phone || state.currentUser.id}`, true);
+  await activateAppForUser(state.currentUser);
+}
+
+async function runAuthAction(actionName, action) {
+  if (!ensureSupabaseClient()) {
+    setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإعدادات والإنترنت.", false);
+    return;
   }
-  saveRecords();
-  render();
-  renderIdeas();
-  renderIdeasPreview();
-  setPageMode(true);
-  setAppEnabled(true);
-  log("info", "session_refresh_done", { records: state.records.length });
+  if (state.authBusy) {
+    setAuthStatus("الرجاء الانتظار... جاري تنفيذ العملية السابقة.", false);
+    return;
+  }
+  setAuthBusy(true);
+  try {
+    await action();
+  } catch (err) {
+    authTrace(`${actionName}:exception`, { message: err?.message || "unknown" });
+    setAuthStatus(`تعذر تنفيذ العملية: ${err?.message || "خطأ غير معروف"}`, false);
+  } finally {
+    setAuthBusy(false);
+    authTrace(`${actionName}:done`, {});
+  }
 }
 
 async function handleLogin() {
-  if (!ensureSupabaseClient()) {
-    setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
-    return;
-  }
-  if (state.authBusy) return;
+  setAuthStatus("جاري تسجيل الدخول...", false);
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
   const { email, password } = getAuthCredentials();
-  log("info", "login_attempt", { email: safeEmailForLog(email) });
-  setAuthBusy(true);
-  try {
-    let { error } = await state.db.auth.signInWithPassword({ email, password });
+  await runAuthAction("login", async () => {
+    authTrace("login:start", { emailMasked: safeEmailForLog(email) });
+    authTrace("login:request_signInWithPassword", {});
+    const { data, error } = await state.db.auth.signInWithPassword({ email, password });
     if (error) {
-      if (isInvalidCredentialsError(error)) {
-        log("warn", "login_invalid_try_signup", { email: safeEmailForLog(email) });
-        const signupRes = await signUpWithEmailPassword(email, password);
-        const signupErr = signupRes.error;
-        if (!signupErr) {
-          log("info", "login_created_new_user", { email: safeEmailForLog(email) });
-          ({ error } = await state.db.auth.signInWithPassword({ email, password }));
-        } else {
-          const signupMsg = String(signupErr.message || "").toLowerCase();
-          if (signupMsg.includes("user already registered")) {
-            setAuthStatus(AUTH_MESSAGES.wrongPassword, false);
-            return;
-          }
-          setAuthStatus(formatAuthError(signupErr, "إنشاء الحساب"), false);
-          return;
-        }
-      }
-    }
-    if (error) {
-      log("warn", "login_failed", { message: error.message, status: error.status, code: error.code });
+      authTrace("login:failed", { message: error.message, status: error.status || null, code: error.code || null });
+      if (error.status === 429) return setAuthStatus(formatRateLimitMessage(error), false);
       setAuthStatus(formatAuthError(error, "تسجيل الدخول"), false);
       return;
     }
-    await refreshSessionState();
-  } catch (err) {
-    setAuthStatus(`تعذر تسجيل الدخول: ${err?.message || "خطأ غير معروف"}`, false);
-  } finally {
-    setAuthBusy(false);
-  }
+    if (!data?.user) return setAuthStatus("تمت المحاولة لكن لم تصل بيانات مستخدم. حاول مرة أخرى.", false);
+    authTrace("login:success", { userId: data.user.id || null });
+    forceShowApp();
+    await activateAppForUser(data.user);
+  });
 }
 
 async function handleSignup() {
-  if (!ensureSupabaseClient()) {
-    setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
-    return;
-  }
-  if (state.authBusy) return;
+  setAuthStatus("جاري إنشاء الحساب...", false);
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
   const { email, password } = getAuthCredentials();
-  log("info", "signup_attempt", { email: safeEmailForLog(email) });
-  setAuthBusy(true);
-  try {
-    const { error } = await signUpWithEmailPassword(email, password);
+  await runAuthAction("signup", async () => {
+    authTrace("signup:start", { emailMasked: safeEmailForLog(email) });
+    authTrace("signup:request_signUp", {});
+    const { data, error } = await signUpWithEmailPassword(email, password);
     if (error) {
+      authTrace("signup:failed", { message: error.message, status: error.status || null, code: error.code || null });
+      if (error.status === 429) return setAuthStatus(formatRateLimitMessage(error), false);
       if (isUserAlreadyRegisteredError(error)) {
-        // If account already exists, try login immediately with typed password.
-        const loginExisting = await state.db.auth.signInWithPassword({ email, password });
-        if (loginExisting.error) {
-          if (isInvalidCredentialsError(loginExisting.error)) {
-            setAuthStatus(AUTH_MESSAGES.wrongPassword, false);
-            return;
-          }
-          setAuthStatus(formatAuthError(loginExisting.error, "تسجيل الدخول"), false);
-          return;
-        }
-        await refreshSessionState();
-        return;
+        return setAuthStatus("الحساب موجود. استعمل زر دخول بكلمة المرور الصحيحة.", false);
       }
       setAuthStatus(formatAuthError(error, "إنشاء الحساب"), false);
       return;
     }
-    // Auto-login right after signup to avoid forcing extra manual step.
-    const loginAfterSignup = await state.db.auth.signInWithPassword({ email, password });
-    if (loginAfterSignup.error) {
-      setAuthStatus(formatAuthError(loginAfterSignup.error, "تسجيل الدخول بعد إنشاء الحساب"), false);
+    if (!data?.session) {
+      setAuthStatus("تم إنشاء الحساب. إذا كان تأكيد البريد مفعّل، افحص Gmail ثم سجّل الدخول.", true);
       return;
     }
-    await refreshSessionState();
-  } catch (err) {
-    setAuthStatus(`تعذر إنشاء الحساب: ${err?.message || "خطأ غير معروف"}`, false);
-  } finally {
-    setAuthBusy(false);
-  }
+    authTrace("signup:success", { userId: data?.session?.user?.id || null });
+    await activateAppForUser(data.session.user);
+  });
 }
 
 async function handlePasswordReset() {
-  if (!ensureSupabaseClient()) {
-    setAuthStatus("تعذر الاتصال بـ Supabase. تأكد من الإنترنت ثم أعد المحاولة.", false);
-    return;
-  }
-  if (state.authBusy) return;
+  setAuthStatus("جاري إرسال رابط استرجاع كلمة المرور...", false);
   const emailValidation = validateEmailOnly();
   if (!emailValidation.ok) return setAuthStatus(emailValidation.message, false);
   const email = getAuthEmail();
-  setAuthBusy(true);
-  try {
-    const redirectTo = `${globalThis.location.origin}${globalThis.location.pathname}`;
-    const { error } = await state.db.auth.resetPasswordForEmail(email, { redirectTo });
+  await runAuthAction("reset", async () => {
+    authTrace("reset:start", { emailMasked: safeEmailForLog(email) });
+    authTrace("reset:request_resetPasswordForEmail", { hasRedirect: globalThis.location?.protocol !== "file:" });
+    const { error } = await state.db.auth.resetPasswordForEmail(email, getPasswordResetOptions());
     if (error) {
+      authTrace("reset:failed", { message: error.message, status: error.status || null, code: error.code || null });
+      if (error.status === 429) return setAuthStatus(formatRateLimitMessage(error), false);
       setAuthStatus(formatAuthError(error, "استرجاع كلمة المرور"), false);
       return;
     }
-    setAuthStatus("تم إرسال رابط إعادة تعيين كلمة المرور إلى Gmail.", true);
-  } catch (err) {
-    setAuthStatus(`تعذر إرسال رابط الاسترجاع: ${err?.message || "خطأ غير معروف"}`, false);
-  } finally {
-    setAuthBusy(false);
-  }
+    setAuthStatus("تم إرسال رابط إعادة التعيين إلى Gmail.", true);
+  });
 }
 
 function bindAuthEvents() {
   if (state.authEventsBound) return;
   state.authEventsBound = true;
   globalThis.__dailySalesAuthReady = true;
+
   dom.authForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    authTrace("event:submit_login", {});
     await handleLogin();
   });
+  dom.loginBtn?.addEventListener("click", () => {
+    if (!state.authBusy) setAuthStatus("تم الضغط على دخول... جاري التحقق.", false);
+  });
   dom.signupBtn?.addEventListener("click", async () => {
+    authTrace("event:click_signup", {});
     await handleSignup();
   });
   dom.resetPasswordBtn?.addEventListener("click", async () => {
+    authTrace("event:click_reset", {});
     await handlePasswordReset();
   });
   dom.logoutBtnApp?.addEventListener("click", async () => {
     if (!state.db) return;
-    log("info", "logout_click", {});
+    authTrace("event:click_logout", {});
     await state.db.auth.signOut();
-    log("info", "logout_done", {});
     await refreshSessionState();
   });
 }
@@ -779,8 +836,30 @@ function init() {
   // Bind auth actions early so login/signup buttons always work.
   bindAuthEvents();
   if (state.db) {
-    state.db.auth.onAuthStateChange(async () => {
-      log("info", "auth_state_change", {});
+    state.db.auth.onAuthStateChange(async (event, session) => {
+      log("info", "auth_state_change", { event, hasSession: !!session, userId: session?.user?.id || null });
+      authTrace("auth_state_change", { event, hasSession: !!session, userId: session?.user?.id || null });
+
+      // INITIAL_SESSION may be null momentarily in some environments; avoid overriding UI state.
+      if (event === "INITIAL_SESSION") return;
+
+      if (event === "SIGNED_IN" && session?.user) {
+        await activateAppForUser(session.user);
+        return;
+      }
+
+      if (event === "SIGNED_OUT") {
+        state.currentUser = null;
+        state.records = [];
+        state.ideas = [];
+        render();
+        renderIdeas();
+        setPageMode(false);
+        setAppEnabled(false);
+        setAuthStatus("تم تسجيل الخروج.", true);
+        return;
+      }
+
       await refreshSessionState();
     });
   }
@@ -903,6 +982,7 @@ function init() {
   });
 
   refreshAuthButtons();
+  setAuthStatus("النظام جاهز. يمكنك تسجيل الدخول أو إنشاء حساب.", true);
   refreshSessionState();
   renderIdeasPreview();
   log("info", "init_done", {});

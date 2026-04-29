@@ -345,10 +345,13 @@
   </style>
 </head>
 <body>
+  <div style="position:fixed;top:8px;left:8px;z-index:9999;background:#111;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px">
+    BUILD local-2026-04-29-01
+  </div>
   <div class="container">
     <div class="card" id="authPage">
       <h2 style="margin:0 0 8px">تسجيل الدخول بـ Gmail</h2>
-      <p>إنشاء الحساب والدخول يكونا بـ Gmail وكلمة مرور تختارها أنت (بدون ربط Google).</p>
+      <p>إنشاء الحساب وتسجيل الدخول يكونان عبر Gmail وكلمة مرور تختارها أنت (بدون ربط Google).</p>
       <div class="auth-box">
         <form id="authForm" autocomplete="on">
           <div class="grid">
@@ -553,108 +556,7 @@
     </div>
   </div>
 
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="./supabase-js-v2.min.js"></script>
   <script defer src="./app.js"></script>
-  <script>
-    // Emergency auth fallback: keeps auth buttons working if app.js init fails.
-    window.addEventListener("DOMContentLoaded", () => {
-      setTimeout(() => {
-        if (window.__dailySalesAuthReady) return;
-        const authStatus = document.getElementById("authStatus");
-        const authForm = document.getElementById("authForm");
-        const emailInput = document.getElementById("emailInput");
-        const passwordInput = document.getElementById("passwordInput");
-        const signupBtn = document.getElementById("signupBtn");
-        const resetPasswordBtn = document.getElementById("resetPasswordBtn");
-        const appPage = document.getElementById("appPage");
-        const authPage = document.getElementById("authPage");
-        const logoutBtn = document.getElementById("logoutBtnApp");
-        const emailRegex = /^[^\s@]+@gmail\.com$/i;
-        const projectId = "navqvljmipzheqjmlzgt";
-        const supabaseUrl = "https://" + projectId + ".supabase.co";
-        const supabaseAnon =
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hdnF2bGptaXB6aGVxam1semd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTAzNzQsImV4cCI6MjA5MjM2NjM3NH0.xDeyeaAhcyjuLEWUOfDRQKdjDUDiQNfw6UMlcdm5n2k";
-        const sb = window.supabase?.createClient?.(supabaseUrl, supabaseAnon);
-        const setStatus = (msg, ok) => {
-          if (!authStatus) return;
-          authStatus.textContent = msg;
-          authStatus.classList.toggle("ok", !!ok);
-        };
-        const getEmail = () => String(emailInput?.value || "").trim().toLowerCase();
-        const getPassword = () => String(passwordInput?.value || "");
-        const valid = () => {
-          if (!emailRegex.test(getEmail())) return "أدخل Gmail صحيح.";
-          if (getPassword().length < 6) return "كلمة المرور لازم تكون 6 أحرف على الأقل.";
-          return "";
-        };
-        const showApp = () => {
-          if (appPage) appPage.classList.remove("hidden");
-          if (authPage) authPage.classList.add("hidden");
-        };
-        if (!sb) {
-          setStatus("تعذر تحميل Supabase. أعد التحديث بـ Ctrl+F5.", false);
-          return;
-        }
-        authForm?.addEventListener("submit", async (e) => {
-          e.preventDefault();
-          const v = valid();
-          if (v) return setStatus(v, false);
-          const email = getEmail();
-          const password = getPassword();
-          const login = await sb.auth.signInWithPassword({ email, password });
-          if (!login.error) {
-            setStatus("تم تسجيل الدخول.", true);
-            showApp();
-            return;
-          }
-          const create = await sb.auth.signUp({ email, password, options: { data: { email } } });
-          if (create.error) {
-            if (String(create.error.message || "").toLowerCase().includes("user already registered")) {
-              setStatus("كلمة المرور خاطئة لهذا الحساب.", false);
-              return;
-            }
-            setStatus("فشل الدخول/الإنشاء: " + create.error.message, false);
-            return;
-          }
-          setStatus("تم إنشاء الحساب وتسجيل الدخول.", true);
-          showApp();
-        });
-        signupBtn?.addEventListener("click", async () => {
-          const v = valid();
-          if (v) return setStatus(v, false);
-          const email = getEmail();
-          const password = getPassword();
-          const create = await sb.auth.signUp({ email, password, options: { data: { email } } });
-          if (create.error) {
-            if (String(create.error.message || "").toLowerCase().includes("user already registered")) {
-              const login = await sb.auth.signInWithPassword({ email, password });
-              if (login.error) return setStatus("كلمة المرور خاطئة لهذا الحساب.", false);
-              setStatus("تم تسجيل الدخول.", true);
-              showApp();
-              return;
-            }
-            setStatus("فشل إنشاء الحساب: " + create.error.message, false);
-            return;
-          }
-          setStatus("تم إنشاء الحساب.", true);
-        });
-        resetPasswordBtn?.addEventListener("click", async () => {
-          const email = getEmail();
-          if (!emailRegex.test(email)) return setStatus("أدخل Gmail صحيح.", false);
-          const redirectTo = window.location.origin + window.location.pathname;
-          const r = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-          if (r.error) return setStatus("فشل استرجاع كلمة المرور: " + r.error.message, false);
-          setStatus("تم إرسال رابط إعادة التعيين إلى Gmail.", true);
-        });
-        logoutBtn?.addEventListener("click", async () => {
-          await sb.auth.signOut();
-          if (appPage) appPage.classList.add("hidden");
-          if (authPage) authPage.classList.remove("hidden");
-          setStatus("تم تسجيل الخروج.", true);
-        });
-        setStatus("وضع إصلاح الطوارئ للتوثيق مفعّل.", true);
-      }, 1200);
-    });
-  </script>
 </body>
 </html>
