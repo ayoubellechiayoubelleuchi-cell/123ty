@@ -280,6 +280,23 @@ function getPasswordResetOptions() {
   return { redirectTo: `${globalThis.location.origin}${globalThis.location.pathname}` };
 }
 
+function getSupabaseStorageKey() {
+  return `sb-${SUPABASE_PROJECT_ID}-auth-token`;
+}
+
+function readStoredSessionTokens() {
+  try {
+    const raw = localStorage.getItem(getSupabaseStorageKey());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const session = parsed?.currentSession || parsed?.session || parsed;
+    if (!session?.access_token || !session?.refresh_token) return null;
+    return { access_token: session.access_token, refresh_token: session.refresh_token };
+  } catch {
+    return null;
+  }
+}
+
 
 function setPageMode(isLoggedIn) {
   dom.appPage.classList.toggle("hidden", !isLoggedIn);
@@ -673,13 +690,27 @@ async function refreshSessionState() {
     return;
   }
 
-  const { data, error } = await state.db.auth.getSession();
+  let { data, error } = await state.db.auth.getSession();
   if (error) {
     authTrace("refresh_session:get_session_error", { message: error.message, status: error.status || null, code: error.code || null });
     setAuthStatus(`فشل قراءة الجلسة: ${error.message}`, false);
     setPageMode(false);
     setAppEnabled(false);
     return;
+  }
+
+  if (!data?.session) {
+    const storedTokens = readStoredSessionTokens();
+    if (storedTokens) {
+      authTrace("refresh_session:try_restore_from_storage", {});
+      const restored = await state.db.auth.setSession(storedTokens);
+      if (!restored.error && restored.data?.session) {
+        data = restored.data;
+        authTrace("refresh_session:restored_from_storage", { userId: restored.data.session.user?.id || null });
+      } else if (restored.error) {
+        authTrace("refresh_session:restore_failed", { message: restored.error.message, status: restored.error.status || null, code: restored.error.code || null });
+      }
+    }
   }
 
   state.currentUser = data.session?.user ?? null;
@@ -902,7 +933,16 @@ function init() {
 
   dom.form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
+    if (!state.currentUser) {
+      await refreshSessionState();
+      if (!state.currentUser) {
+        setSyncStatus("تعذر إضافة العملية: الجلسة منتهية. سجّل الدخول ثم أعد المحاولة.", false);
+        setAuthStatus("انتهت الجلسة. سجّل الدخول من جديد.", false);
+        setPageMode(false);
+        setAppEnabled(false);
+        return;
+      }
+    }
     const unpaidStr = dom.fields.unpaidAmount.value.trim();
     const unpaidRaw = unpaidStr === "" ? 0 : Number(unpaidStr);
     const unpaidEffective = dom.debtFullyPaid.checked ? 0 : unpaidRaw;
@@ -918,7 +958,12 @@ function init() {
       unpaidAmount: unpaidEffective,
       cost: Number(dom.fields.cost.value)
     };
-    if (!base.date || !base.product || !base.description || base.totalSale < 0 || Number.isNaN(base.totalSale) || base.unpaidAmount < 0 || Number.isNaN(base.unpaidAmount) || base.cost < 0 || Number.isNaN(base.cost)) return;
+    if (!base.date) return alert("اختر تاريخ العملية.");
+    if (!base.product) return alert("أدخل اسم المنتج.");
+    if (!base.description) return alert("أدخل وصف البيع.");
+    if (Number.isNaN(base.totalSale) || base.totalSale < 0) return alert("أدخل قيمة صحيحة في إجمالي البيع.");
+    if (Number.isNaN(base.unpaidAmount) || base.unpaidAmount < 0) return alert("أدخل قيمة صحيحة في خانة غير المدفوع.");
+    if (Number.isNaN(base.cost) || base.cost < 0) return alert("أدخل قيمة صحيحة في رأس المال.");
     if (base.unpaidAmount > base.totalSale) return alert("مبلغ «غير المدفوع» لا يمكن أن يتجاوز إجمالي البيع.");
 
     log("info", "sale_submit", {
@@ -929,13 +974,25 @@ function init() {
       cost: base.cost,
       debtFullyPaid: dom.debtFullyPaid.checked
     });
-    state.records.unshift(computeRecord(base));
-    saveRecords();
-    await upsertRecordRemote(state.records[0]);
-    render();
-    dom.form.reset();
-    dom.debtFullyPaid.checked = true;
-    dom.debtFullyPaid.dispatchEvent(new Event("change"));
+    try {
+      const newRecord = computeRecord(base);
+      state.records.unshift(newRecord);
+      saveRecords();
+      render();
+      setSyncStatus("تمت إضافة العملية محليًا بنجاح.", true);
+      dom.form.reset();
+      dom.debtFullyPaid.checked = true;
+      dom.debtFullyPaid.dispatchEvent(new Event("change"));
+
+      const remoteOk = await upsertRecordRemote(newRecord);
+      if (!remoteOk) {
+        setSyncStatus("تمت إضافة العملية محليًا، لكن فشلت مزامنتها مع Supabase.", false);
+      } else {
+        setSyncStatus("تمت إضافة العملية ومزامنتها مع Supabase.", true);
+      }
+    } catch (err) {
+      setSyncStatus(`فشل إضافة العملية: ${err?.message || "خطأ غير معروف"}`, false);
+    }
   });
 
   for (const field of [dom.ideaFields.capital, dom.ideaFields.price, dom.ideaFields.qty]) {
