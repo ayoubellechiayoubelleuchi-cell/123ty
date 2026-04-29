@@ -7,347 +7,218 @@
   <title>تسجيل المبيعات اليومية</title>
   <style>
     :root {
-      --bg: #305ebb;
-      --card: #f3f3f3;
-      --text: #1f2a44;
-      --muted: #0f5dee;
-      --accent: #edeef0;
-      --ok: #31ad73;
-      --border: #dde4f0;
+      --bg: #060f24;
+      --bg-soft: #0a1834;
+      --card: #111f3f;
+      --card-2: #0d1a35;
+      --text: #e8f1ff;
+      --muted: #9eb2d8;
+      --border: #20355f;
+      --primary: #3fb3ff;
+      --success: #38d39f;
+      --warning: #f3bc54;
+      --danger: #ff6b7a;
+      --shadow: 0 16px 40px rgba(1, 8, 24, 0.45);
     }
 
-    * {
-      box-sizing: border-box;
-      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
-    }
+    * { box-sizing: border-box; font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
 
     body {
       margin: 0;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at 15% 5%, #17366d 0%, transparent 35%),
+        radial-gradient(circle at 90% 10%, #132f63 0%, transparent 30%),
+        linear-gradient(180deg, var(--bg-soft), var(--bg));
       color: var(--text);
-      line-height: 1.5;
+      line-height: 1.45;
+      min-height: 100vh;
     }
 
-    .container {
-      max-width: 980px;
-      margin: 24px auto;
-      padding: 0 16px;
-    }
+    .container { max-width: 1120px; margin: 24px auto; padding: 0 14px; }
 
     .card {
-      background: var(--card);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent), var(--card);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 16px;
       padding: 18px;
-      margin-bottom: 16px;
-      box-shadow: 0 3px 16px rgba(20, 44, 92, 0.06);
+      margin-bottom: 14px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(2px);
     }
 
-    h1, h2 {
-      margin: 0 0 12px;
-    }
+    h1, h2 { margin: 0 0 10px; font-weight: 700; letter-spacing: 0.1px; }
+    p { color: var(--muted); margin-top: 0; }
 
-    p {
-      color: var(--muted);
-      margin-top: 0;
-    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+    label { display: block; font-size: 13px; color: #b5c7e8; margin-bottom: 6px; }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 12px;
-    }
-
-    label {
-      display: block;
-      font-size: 14px;
-      color: var(--muted);
-      margin-bottom: 4px;
-    }
-
-    input,
-    textarea {
+    input, textarea {
       width: 100%;
-      border: 1px solid var(--border);
+      border: 1px solid #294575;
       border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 15px;
-      background: #fff;
+      padding: 10px 11px;
+      font-size: 14px;
+      color: var(--text);
+      background: #0a1732;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
-    textarea {
-      min-height: 76px;
-      resize: vertical;
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(63, 179, 255, 0.16);
     }
 
-    .span-2 {
-      grid-column: 1 / -1;
-    }
+    textarea { min-height: 74px; resize: vertical; }
+    .span-2 { grid-column: 1 / -1; }
 
-    .actions {
-      margin-top: 14px;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+    .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 
     button {
-      border: none;
+      border: 1px solid transparent;
       border-radius: 10px;
       padding: 10px 14px;
       font-size: 14px;
+      font-weight: 600;
       cursor: pointer;
+      color: #fff;
+      transition: transform 0.08s ease, opacity 0.2s ease, border-color 0.2s ease;
     }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .primary {
-      background: var(--accent);
-      color: #fff;
+      background: linear-gradient(180deg, #2dcf8c, #1fa76f);
+      border-color: rgba(56, 211, 159, 0.55);
+      box-shadow: 0 8px 18px rgba(33, 174, 116, 0.3);
     }
 
     .ghost {
-      background: #edf2ff;
-      color: #1848a0;
+      background: linear-gradient(180deg, #202f52, #172744);
+      border-color: #2f4a79;
+      color: #d8e6ff;
     }
 
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 10px;
-      margin-top: 10px;
-    }
-
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
     .stat {
-      border: 1px dashed var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      background: #fbfcff;
+      border: 1px solid #2a4574;
+      border-radius: 12px;
+      padding: 11px 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)), var(--card-2);
+      color: #bfd0ee;
     }
+    .stat b { display: block; color: var(--success); font-size: 24px; margin-top: 4px; font-weight: 800; }
+    .stat-warn b { color: #ffae4a; }
 
-    .stat b {
-      color: var(--ok);
-      font-size: 18px;
-    }
-
-    .stat-warn b {
-      color: #c45c00;
-    }
-
-    .hint {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 6px;
-    }
+    .hint { font-size: 12px; color: #9cb3dc; margin-top: 5px; }
 
     .form-section {
-      margin-top: 18px;
-      padding: 14px 16px;
-      background: #f9fbff;
-      border: 1px solid var(--border);
+      margin-top: 14px;
+      padding: 12px 13px;
+      background: rgba(13, 30, 61, 0.85);
+      border: 1px solid #294675;
       border-radius: 12px;
     }
+    .form-section-title { font-size: 15px; margin: 0 0 4px; font-weight: 700; color: #e4efff; }
+    .form-section-lead { font-size: 12px; color: #9db3d6; margin: 0 0 9px; line-height: 1.4; }
+    .one-field { max-width: 360px; }
+    .form-section--debt { border-inline-start: 3px solid #4ba3ff; }
 
-    .form-section-title {
-      font-size: 16px;
-      margin: 0 0 4px;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .form-section-lead {
-      font-size: 13px;
-      color: var(--muted);
-      margin: 0 0 12px;
-      line-height: 1.45;
-    }
-
-    .one-field {
-      max-width: 360px;
-    }
-
-    .form-section--debt {
-      border-inline-start: 3px solid var(--accent);
-    }
-
-    .debt-linked-field {
-      margin-top: 16px;
-      display: flex;
-      gap: 12px;
-      align-items: stretch;
-    }
-
+    .debt-linked-field { margin-top: 12px; display: flex; gap: 10px; align-items: stretch; }
     .debt-linked-connector {
       width: 4px;
       border-radius: 4px;
-      background: linear-gradient(180deg, var(--accent), #9bb9ff);
+      background: linear-gradient(180deg, #3eb2ff, #7f73ff);
       flex-shrink: 0;
     }
-
     .debt-linked-inner {
       flex: 1;
       min-width: 0;
-      border: 1px solid var(--border);
+      border: 1px solid #2b4b7f;
       border-radius: 10px;
-      padding: 12px 14px;
-      background: #fff;
+      padding: 10px 12px;
+      background: #0e1d3a;
     }
+    .debt-linked-title { display: block; font-size: 13px; font-weight: 700; color: #dce9ff; margin-bottom: 6px; }
+    .debt-toggle-row { display: flex; align-items: flex-start; gap: 8px; }
+    .debt-toggle-row input[type="checkbox"] { width: auto; margin-top: 4px; flex-shrink: 0; accent-color: #3eb2ff; }
+    .debt-toggle-row label { cursor: pointer; font-size: 14px; color: #d9e5fd; line-height: 1.4; }
 
-    .debt-linked-title {
-      display: block;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 8px;
-    }
+    .btn-small { padding: 6px 10px; font-size: 12px; white-space: normal; max-width: 150px; line-height: 1.35; }
+    .tag-ok { color: var(--success); font-weight: 700; font-size: 13px; white-space: normal; }
 
-    .debt-toggle-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
-
-    .debt-toggle-row input[type="checkbox"] {
-      width: auto;
-      margin-top: 4px;
-      flex-shrink: 0;
-    }
-
-    .debt-toggle-row label {
-      cursor: pointer;
-      font-size: 15px;
-      color: var(--text);
-      line-height: 1.45;
-    }
-
-    .btn-small {
-      padding: 6px 10px;
-      font-size: 12px;
-      white-space: normal;
-      max-width: 140px;
-      line-height: 1.35;
-    }
-
-    .tag-ok {
-      color: var(--ok);
-      font-weight: 600;
-      font-size: 13px;
-      white-space: normal;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td {
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid #27436f;
       padding: 8px 6px;
       text-align: right;
+      color: #c8d8f3;
       white-space: nowrap;
+    }
+    th {
+      font-size: 12px;
+      color: #a8bfdf;
+      text-transform: none;
+      background: #102144;
+      position: sticky;
+      top: 0;
+      z-index: 1;
     }
 
     .data-table th:nth-child(3),
-    .data-table td:nth-child(3) {
-      white-space: normal;
-      max-width: 280px;
-      word-break: break-word;
-    }
-
-    .table-wrap {
-      overflow-x: auto;
-    }
-
-    .empty {
-      color: var(--muted);
-      text-align: center;
-      padding: 14px;
-    }
+    .data-table td:nth-child(3) { white-space: normal; max-width: 280px; word-break: break-word; }
+    .table-wrap { overflow-x: auto; border: 1px solid #2a4776; border-radius: 12px; }
+    .empty { color: #9eb3d5; text-align: center; padding: 12px; font-size: 13px; }
 
     .auth-box {
-      border: 1px solid var(--border);
+      border: 1px solid #2b4a79;
       border-radius: 12px;
       padding: 12px;
-      background: #f9fbff;
+      background: #0d1b37;
       margin-bottom: 12px;
     }
-
-    .auth-status {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 8px;
-    }
-
-    .auth-status.ok {
-      color: var(--ok);
-    }
-
-    .hidden {
-      display: none;
-    }
+    .auth-status { font-size: 13px; color: #a8bfdc; margin-top: 8px; }
+    .auth-status.ok { color: var(--success); }
+    .hidden { display: none; }
 
     .idea-tip {
       margin-top: 10px;
-      border: 1px solid #ffd38a;
+      border: 1px solid #5d4d1e;
       border-radius: 10px;
-      background: #fff8ea;
+      background: #2a220c;
       padding: 10px 12px;
       font-size: 14px;
-      color: #7a4a00;
+      color: #f5db8b;
     }
-
-    .idea-tip strong {
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .idea-profit-weak {
-      color: #b30000;
-      font-weight: 700;
-    }
-
-    .idea-profit-good {
-      color: var(--ok);
-      font-weight: 700;
-    }
+    .idea-tip strong { display: block; margin-bottom: 4px; color: #ffd873; }
+    .idea-profit-weak { color: var(--danger); font-weight: 700; }
+    .idea-profit-good { color: var(--success); font-weight: 700; }
 
     .sync-status {
       font-size: 13px;
-      color: var(--muted);
+      color: #c7d7ef;
       margin: 8px 0 0;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #102243;
+      border: 1px solid #2b4b7d;
     }
-
     .sync-status.ok {
-      color: var(--ok);
+      color: #bff7df;
+      border-color: #2e805f;
+      background: #102d24;
     }
 
-    @media (max-width: 640px) {
-      .container {
-        margin: 12px auto;
-        padding: 0 10px;
-      }
-
-      .card {
-        padding: 14px;
-      }
-
-      #authPage {
-        display: block;
-      }
-
-      .actions button {
-        width: 100%;
-      }
-
-      .grid {
-        grid-template-columns: 1fr;
-      }
+    @media (max-width: 760px) {
+      .container { margin: 12px auto; padding: 0 10px; }
+      .card { padding: 14px; }
+      .actions button { width: 100%; }
+      .grid { grid-template-columns: 1fr; }
+      .stat b { font-size: 21px; }
     }
   </style>
 </head>
 <body>
-  <div style="position:fixed;top:8px;left:8px;z-index:9999;background:#111;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px">
-    BUILD local-2026-04-29-01
-  </div>
   <div class="container">
     <div class="card" id="authPage">
       <h2 style="margin:0 0 8px">تسجيل الدخول بـ Gmail</h2>
