@@ -34,7 +34,7 @@
       min-height: 100vh;
     }
 
-    .container { max-width: 1120px; margin: 24px auto; padding: 0 14px; }
+    .container { max-width: 1180px; margin: 24px auto; padding: 0 14px; }
 
     .card {
       background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent), var(--card);
@@ -99,7 +99,7 @@
       color: #d8e6ff;
     }
 
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
     .stat {
       border: 1px solid #2a4574;
       border-radius: 12px;
@@ -107,7 +107,7 @@
       background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)), var(--card-2);
       color: #bfd0ee;
     }
-    .stat b { display: block; color: var(--success); font-size: 24px; margin-top: 4px; font-weight: 800; }
+    .stat b { display: block; color: var(--success); font-size: 22px; margin-top: 4px; font-weight: 800; }
     .stat-warn b { color: #ffae4a; }
 
     .hint { font-size: 12px; color: #9cb3dc; margin-top: 5px; }
@@ -209,6 +209,126 @@
       background: #102d24;
     }
 
+    .app-top-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .summary-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .summary-row {
+      border: 1px solid #294675;
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.02), transparent), #0f1f3f;
+      padding: 8px 11px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: #bdd0ef;
+    }
+
+    .summary-row b {
+      font-size: 18px;
+      color: #d8ebff;
+    }
+
+    .summary-row.sales b { color: #73d4ff; }
+    .summary-row.profit b { color: #47e29a; }
+    .summary-row.reinvest b { color: #f0cc65; }
+    .summary-row.net b { color: #d48bff; }
+    .summary-row.capital b { color: #7dde8d; }
+    .summary-row.unpaid b { color: #ff7f94; }
+    .summary-row.paid b { color: #4ef4e1; }
+
+    .insights-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .mini-card {
+      border: 1px solid #2b4a7a;
+      border-radius: 12px;
+      background: #0d1c39;
+      min-height: 190px;
+      padding: 10px;
+    }
+
+    .mini-card h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: #d9e9ff;
+      font-weight: 700;
+    }
+
+    .donut-demo {
+      width: 130px;
+      height: 130px;
+      margin: 8px auto 6px;
+      border-radius: 50%;
+      background: conic-gradient(#2ed69a 0 40%, #66b8ff 40% 70%, #f0c45e 70% 78%, #b579ff 78% 100%);
+      position: relative;
+    }
+    .donut-demo::after {
+      content: "";
+      position: absolute;
+      inset: 24px;
+      border-radius: 50%;
+      background: #0d1c39;
+    }
+
+    .line-demo {
+      height: 130px;
+      border-radius: 10px;
+      border: 1px solid #27436f;
+      background:
+        linear-gradient(180deg, transparent 95%, rgba(255,255,255,0.06) 95%),
+        linear-gradient(90deg, transparent 95%, rgba(255,255,255,0.05) 95%),
+        #0b1831;
+      background-size: 100% 26px, 24px 100%, auto;
+      position: relative;
+      overflow: hidden;
+    }
+    .line-demo::before {
+      content: "";
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      top: 56%;
+      height: 2px;
+      background: #68b9ff;
+      transform: skewY(-18deg);
+      box-shadow: 0 -22px 0 #68b9ff, 0 22px 0 #68b9ff;
+      opacity: 0.9;
+    }
+
+    .rank-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .rank-item {
+      border: 1px solid #2d4d7c;
+      border-radius: 10px;
+      padding: 8px 9px;
+      display: flex;
+      justify-content: space-between;
+      color: #c8daf7;
+      background: #102246;
+    }
+
+    @media (max-width: 980px) {
+      .app-top-grid { grid-template-columns: 1fr; }
+      .insights-grid { grid-template-columns: 1fr; }
+    }
+
     @media (max-width: 760px) {
       .container { margin: 12px auto; padding: 0 10px; }
       .card { padding: 14px; }
@@ -246,6 +366,7 @@
     </div>
 
     <div id="appPage" class="hidden">
+    <div class="app-top-grid">
     <div class="card">
       <div class="actions" style="margin-top:0; margin-bottom:10px;">
         <button class="ghost" type="button" id="logoutBtnApp">تسجيل الخروج</button>
@@ -363,6 +484,7 @@
         </div>
       </form>
     </div>
+    </div>
 
     <div class="card">
       <h2>سجل الأفكار</h2>
@@ -387,14 +509,14 @@
 
     <div class="card">
       <h2>ملخص المشروع</h2>
-      <div class="stats">
-        <div class="stat">إجمالي المبيعات: <b id="totalSales">0.00 د</b></div>
-        <div class="stat">إجمالي الربح: <b id="totalProfit">0.00 د</b></div>
-        <div class="stat">إجمالي إعادة الاستثمار (10%): <b id="totalReinvest">0.00 د</b></div>
-        <div class="stat">إجمالي الربح الصافي: <b id="totalNetProfit">0.00 د</b></div>
-        <div class="stat">رأس المال الحالي: <b id="currentCapital">0.00 د</b></div>
-        <div class="stat stat-warn">إجمالي غير المدفوع (مستحقات حالية): <b id="totalUnpaid">0.00 د</b></div>
-        <div class="stat">إجمالي المحصّل (ما دخل فعليًا): <b id="totalPaid">0.00 د</b></div>
+      <div class="summary-list">
+        <div class="summary-row sales"><span>إجمالي المبيعات</span><b id="totalSales">0.00 د</b></div>
+        <div class="summary-row profit"><span>إجمالي الربح</span><b id="totalProfit">0.00 د</b></div>
+        <div class="summary-row reinvest"><span>إجمالي إعادة الاستثمار (10%)</span><b id="totalReinvest">0.00 د</b></div>
+        <div class="summary-row net"><span>إجمالي الربح الصافي</span><b id="totalNetProfit">0.00 د</b></div>
+        <div class="summary-row capital"><span>رأس المال الحالي</span><b id="currentCapital">0.00 د</b></div>
+        <div class="summary-row unpaid"><span>إجمالي غير المدفوع (مستحقات حالية)</span><b id="totalUnpaid">0.00 د</b></div>
+        <div class="summary-row paid"><span>إجمالي المحصّل (ما دخل فعليًا)</span><b id="totalPaid">0.00 د</b></div>
       </div>
     </div>
 
@@ -423,6 +545,27 @@
         </table>
       </div>
       <div id="emptyState" class="empty">لا توجد بيانات بعد. أضف أول عملية بيع.</div>
+    </div>
+
+    <div class="insights-grid">
+      <div class="mini-card">
+        <h3>نظرة سريعة</h3>
+        <div class="donut-demo"></div>
+        <div class="hint" style="text-align:center">توزيع مبسط للمبيعات والربح والاستثمار.</div>
+      </div>
+      <div class="mini-card">
+        <h3>تطور المبيعات (آخر 7 أيام)</h3>
+        <div class="line-demo"></div>
+        <div class="hint" style="text-align:center;margin-top:8px">عرض تقريبي، وسيتم ربطه ببياناتك الفعلية لاحقًا.</div>
+      </div>
+      <div class="mini-card">
+        <h3>أفضل الأفكار</h3>
+        <div class="rank-list">
+          <div class="rank-item"><span>فكرة #1</span><strong>🏅</strong></div>
+          <div class="rank-item"><span>فكرة #2</span><strong>🥈</strong></div>
+          <div class="rank-item"><span>فكرة #3</span><strong>🥉</strong></div>
+        </div>
+      </div>
     </div>
     </div>
   </div>
