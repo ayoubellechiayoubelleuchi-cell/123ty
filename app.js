@@ -59,6 +59,10 @@ const dom = {
   signupBtn: document.getElementById("signupBtn"),
   resetPasswordBtn: document.getElementById("resetPasswordBtn"),
   logoutBtnApp: document.getElementById("logoutBtnApp"),
+  showSalesSectionBtn: document.getElementById("showSalesSectionBtn"),
+  showIdeasSectionBtn: document.getElementById("showIdeasSectionBtn"),
+  salesSectionCard: document.getElementById("salesSectionCard"),
+  ideasSectionCard: document.getElementById("ideasSectionCard"),
   authStatus: document.getElementById("authStatus"),
   syncStatus: document.getElementById("syncStatus"),
   debtFullyPaid: document.getElementById("debtFullyPaid"),
@@ -333,6 +337,14 @@ function setAppEnabled(enabled) {
   for (const el of dom.form.querySelectorAll("input, textarea, button")) el.disabled = !enabled;
   for (const btn of dom.rowsContainer.querySelectorAll("button[data-debt-paid]")) btn.disabled = !enabled;
   dom.resetBtn.disabled = !enabled;
+}
+
+function setActiveSection(section) {
+  const showSales = section !== "ideas";
+  dom.salesSectionCard?.classList.toggle("hidden", !showSales);
+  dom.ideasSectionCard?.classList.toggle("hidden", showSales);
+  dom.showSalesSectionBtn?.classList.toggle("active", showSales);
+  dom.showIdeasSectionBtn?.classList.toggle("active", !showSales);
 }
 
 async function activateAppForUser(user, statusSuffix = "") {
@@ -1002,6 +1014,10 @@ function init() {
     }
   });
   dom.debtFullyPaid.dispatchEvent(new Event("change"));
+
+  dom.showSalesSectionBtn?.addEventListener("click", () => setActiveSection("sales"));
+  dom.showIdeasSectionBtn?.addEventListener("click", () => setActiveSection("ideas"));
+  setActiveSection("sales");
 
   dom.fields.unpaidAmount.addEventListener("input", () => {
     const str = dom.fields.unpaidAmount.value.trim();

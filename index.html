@@ -216,6 +216,20 @@
       align-items: start;
     }
 
+    .section-switch {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .section-switch button.active {
+      background: linear-gradient(180deg, #2dcf8c, #1fa76f);
+      border-color: rgba(56, 211, 159, 0.55);
+      box-shadow: 0 8px 18px rgba(33, 174, 116, 0.3);
+      color: #fff;
+    }
+
     .summary-list {
       display: grid;
       gap: 8px;
@@ -365,8 +379,12 @@
     </div>
 
     <div id="appPage" class="hidden">
+    <div class="section-switch">
+      <button class="ghost active" type="button" id="showSalesSectionBtn">قسم تسجيل المبيعات</button>
+      <button class="ghost" type="button" id="showIdeasSectionBtn">قسم خانة الأفكار</button>
+    </div>
     <div class="app-top-grid">
-    <div class="card">
+    <div class="card" id="salesSectionCard">
       <div class="actions" style="margin-top:0; margin-bottom:10px;">
         <button class="ghost" type="button" id="logoutBtnApp">تسجيل الخروج</button>
       </div>
@@ -439,7 +457,7 @@
       </form>
     </div>
 
-    <div class="card">
+    <div class="card" id="ideasSectionCard">
       <h2>خانة الأفكار</h2>
       <p>سجّل أي فكرة مشروع قبل التنفيذ، وخلي الحسابات تحددلك إذا الفكرة مربحة ولا لا.</p>
 
