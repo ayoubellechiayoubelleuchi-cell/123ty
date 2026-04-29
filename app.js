@@ -388,6 +388,14 @@ function userIdeasStorageKey() {
   return state.currentUser ? `${IDEAS_STORAGE_KEY}:${state.currentUser.id}` : IDEAS_STORAGE_KEY;
 }
 
+function backupStorageKey() {
+  return `${STORAGE_KEY}:backup`;
+}
+
+function backupIdeasStorageKey() {
+  return `${IDEAS_STORAGE_KEY}:backup`;
+}
+
 function clampUnpaid(totalSale, unpaidRaw) {
   const t = Number(totalSale) || 0;
   let u = Number(unpaidRaw);
@@ -430,7 +438,9 @@ function normalizeRecordsStep2(list) {
 function loadRecords() {
   try {
     if (!state.currentUser) return [];
-    const raw = localStorage.getItem(userStorageKey());
+    let raw = localStorage.getItem(userStorageKey());
+    if (!raw) raw = localStorage.getItem(backupStorageKey());
+    if (!raw) raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     const list = normalizeRecordsStep2(normalizeRecordsStep1(Array.isArray(parsed) ? parsed : []));
     log("info", "local_load", { key: userStorageKey(), count: list.length });
@@ -443,14 +453,18 @@ function loadRecords() {
 
 function saveRecords() {
   if (!state.currentUser) return;
-  localStorage.setItem(userStorageKey(), JSON.stringify(state.records));
+  const payload = JSON.stringify(state.records);
+  localStorage.setItem(userStorageKey(), payload);
+  localStorage.setItem(backupStorageKey(), payload);
   log("info", "local_save", { key: userStorageKey(), count: state.records.length });
 }
 
 function loadIdeas() {
   try {
     if (!state.currentUser) return [];
-    const raw = localStorage.getItem(userIdeasStorageKey());
+    let raw = localStorage.getItem(userIdeasStorageKey());
+    if (!raw) raw = localStorage.getItem(backupIdeasStorageKey());
+    if (!raw) raw = localStorage.getItem(IDEAS_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     const list = Array.isArray(parsed) ? parsed : [];
     log("info", "ideas_local_load", { key: userIdeasStorageKey(), count: list.length });
@@ -463,7 +477,9 @@ function loadIdeas() {
 
 function saveIdeas() {
   if (!state.currentUser) return;
-  localStorage.setItem(userIdeasStorageKey(), JSON.stringify(state.ideas));
+  const payload = JSON.stringify(state.ideas);
+  localStorage.setItem(userIdeasStorageKey(), payload);
+  localStorage.setItem(backupIdeasStorageKey(), payload);
   log("info", "ideas_local_save", { key: userIdeasStorageKey(), count: state.ideas.length });
 }
 
