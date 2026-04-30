@@ -4,358 +4,547 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" href="data:,">
-  <title>تسجيل المبيعات اليومية</title>
+  <title>مشروعي — تسجيل المبيعات</title>
   <style>
     :root {
-      --bg: #060f24;
-      --bg-soft: #0a1834;
-      --card: #111f3f;
-      --card-2: #0d1a35;
-      --text: #e8f1ff;
-      --muted: #9eb2d8;
-      --border: #20355f;
-      --primary: #3fb3ff;
-      --success: #38d39f;
-      --warning: #f3bc54;
-      --danger: #ff6b7a;
-      --shadow: 0 16px 40px rgba(1, 8, 24, 0.45);
+      --sidebar-bg: #0c1222;
+      --sidebar-border: #1e293b;
+      --sidebar-text: #e2e8f0;
+      --sidebar-muted: #94a3b8;
+      --nav-active: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+      --nav-hover: rgba(148, 163, 184, 0.12);
+      --workspace-bg: #eef2f7;
+      --paper: #ffffff;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --primary-btn: linear-gradient(180deg, #8b5cf6 0%, #6d28d9 100%);
+      --danger: #dc2626;
+      --stat-blue: #3b82f6;
+      --stat-green: #22c55e;
+      --stat-orange: #f97316;
+      --stat-purple: #a855f7;
+      --stat-teal: #14b8a6;
+      --stat-red: #ef4444;
+      --radius: 14px;
+      --shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
     }
 
-    * { box-sizing: border-box; font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      background:
-        radial-gradient(circle at 15% 5%, #17366d 0%, transparent 35%),
-        radial-gradient(circle at 90% 10%, #132f63 0%, transparent 30%),
-        linear-gradient(180deg, var(--bg-soft), var(--bg));
-      color: var(--text);
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      background: var(--workspace-bg);
+      color: var(--ink);
       line-height: 1.45;
       min-height: 100vh;
     }
 
-    .container { max-width: 1180px; margin: 24px auto; padding: 0 14px; }
-
-    .card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent), var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 18px;
-      margin-bottom: 14px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(2px);
+    /* ----- Auth (مركز فاتح) ----- */
+    .auth-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background: linear-gradient(160deg, #e8ecf4 0%, #f8fafc 50%);
     }
 
-    h1, h2 { margin: 0 0 10px; font-weight: 700; letter-spacing: 0.1px; }
-    p { color: var(--muted); margin-top: 0; }
+    .auth-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--paper);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+    }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
-    label { display: block; font-size: 13px; color: #b5c7e8; margin-bottom: 6px; }
+    .auth-card h2 { margin: 0 0 14px; font-size: 1.35rem; color: var(--ink); }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
 
     input, textarea {
       width: 100%;
-      border: 1px solid #294575;
+      border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 10px 11px;
+      padding: 10px 12px;
       font-size: 14px;
-      color: var(--text);
-      background: #0a1732;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      color: var(--ink);
+      background: #f8fafc;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
 
     input:focus, textarea:focus {
       outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(63, 179, 255, 0.16);
+      border-color: #8b5cf6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+      background: #fff;
     }
 
     textarea { min-height: 74px; resize: vertical; }
     .span-2 { grid-column: 1 / -1; }
 
-    .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
 
     button {
       border: 1px solid transparent;
       border-radius: 10px;
-      padding: 10px 14px;
+      padding: 10px 16px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      color: #fff;
-      transition: transform 0.08s ease, opacity 0.2s ease, border-color 0.2s ease;
+      transition: transform 0.06s ease, opacity 0.15s;
     }
     button:active { transform: translateY(1px); }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
 
-    .primary {
-      background: linear-gradient(180deg, #2dcf8c, #1fa76f);
-      border-color: rgba(56, 211, 159, 0.55);
-      box-shadow: 0 8px 18px rgba(33, 174, 116, 0.3);
+    .btn-primary-light {
+      background: var(--primary-btn);
+      color: #fff;
+      border-color: rgba(109, 40, 217, 0.35);
+      box-shadow: 0 6px 18px rgba(109, 40, 217, 0.28);
     }
 
-    .ghost {
-      background: linear-gradient(180deg, #202f52, #172744);
-      border-color: #2f4a79;
-      color: #d8e6ff;
+    .btn-ghost-light {
+      background: #fff;
+      border-color: var(--line);
+      color: var(--ink);
     }
 
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
-    .stat {
-      border: 1px solid #2a4574;
-      border-radius: 12px;
+    .auth-box { margin-top: 8px; }
+    .auth-status { font-size: 13px; color: var(--muted); margin-top: 10px; }
+    .auth-status.ok { color: #15803d; font-weight: 600; }
+    .hidden { display: none !important; }
+
+    /* ----- تخطيط التطبيق ----- */
+    .app-layout {
+      display: flex;
+      min-height: 100vh;
+      align-items: stretch;
+    }
+
+    /* RTL: sidebar أولًا في DOM يظهر على اليمين؛ نريد الشريط يمين الصفحة كلوحة عربية */
+    .app-sidebar {
+      width: 268px;
+      flex-shrink: 0;
+      background: var(--sidebar-bg);
+      color: var(--sidebar-text);
+      border-inline-start: 1px solid var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 14px;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 22px;
+      padding: 0 6px;
+    }
+
+    .sidebar-brand span.icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      display: grid;
+      place-items: center;
+      font-size: 1.1rem;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .nav-item {
+      text-align: right;
+      width: 100%;
       padding: 11px 12px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)), var(--card-2);
-      color: #bfd0ee;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--sidebar-muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
     }
-    .stat b { display: block; color: var(--success); font-size: 22px; margin-top: 4px; font-weight: 800; }
-    .stat-warn b { color: #ffae4a; }
 
-    .hint { font-size: 12px; color: #9cb3dc; margin-top: 5px; }
+    .nav-item:hover { background: var(--nav-hover); color: var(--sidebar-text); }
+    .nav-item.active {
+      background: var(--nav-active);
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35);
+    }
+
+    .sidebar-widget {
+      margin: 16px 0 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--sidebar-border);
+      font-size: 12px;
+      color: var(--sidebar-muted);
+    }
+
+    .sidebar-widget-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+    .sidebar-widget-row:last-child { margin-bottom: 0; }
+
+    .sidebar-widget-row b { color: #f8fafc; font-size: 15px; }
+    .pill-trend {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      font-weight: 700;
+    }
+
+    .sidebar-logout {
+      margin-top: auto;
+      width: 100%;
+      padding: 11px;
+      border-radius: 10px;
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      background: rgba(220, 38, 38, 0.15);
+      color: #fca5a5;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .sidebar-logout:hover { background: rgba(220, 38, 38, 0.28); color: #fff; }
+
+    .main-workspace {
+      flex: 1;
+      min-width: 0;
+      padding: 22px 22px 32px;
+      overflow-x: hidden;
+    }
+
+    .workspace-inner {
+      max-width: 1220px;
+      margin: 0 auto;
+    }
+
+    .workspace-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--ink);
+      margin: 0 0 16px;
+    }
+
+    /* تبديل القسمين */
+    .section-tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .section-tab {
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--muted);
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    .section-tab.active {
+      background: var(--nav-active);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 8px 22px rgba(124, 58, 237, 0.35);
+    }
+
+    .panel-card {
+      background: var(--paper);
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      padding: 18px 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel-card h1 { font-size: 1.15rem; margin: 0 0 6px; color: var(--ink); }
+    .panel-card h2 { font-size: 1.1rem; margin: 0 0 8px; color: var(--ink); }
+    .panel-card .lead { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+    .form-stack .panel-card.hidden-section { display: none; }
+
+    .sync-status {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0 0 12px;
+      padding: 8px 11px;
+      border-radius: 10px;
+      background: #f1f5f9;
+      border: 1px solid var(--line);
+    }
+    .sync-status.ok { color: #166534; border-color: #bbf7d0; background: #f0fdf4; }
 
     .form-section {
-      margin-top: 14px;
-      padding: 12px 13px;
-      background: rgba(13, 30, 61, 0.85);
-      border: 1px solid #294675;
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
       border-radius: 12px;
     }
-    .form-section-title { font-size: 15px; margin: 0 0 4px; font-weight: 700; color: #e4efff; }
-    .form-section-lead { font-size: 12px; color: #9db3d6; margin: 0 0 9px; line-height: 1.4; }
-    .one-field { max-width: 360px; }
-    .form-section--debt { border-inline-start: 3px solid #4ba3ff; }
+    .form-section-title { font-size: 14px; margin: 0 0 4px; font-weight: 800; color: var(--ink); }
+    .form-section-lead { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+    .one-field { max-width: 380px; }
+
+    .form-section--debt { border-inline-end: 3px solid #6366f1; }
 
     .debt-linked-field { margin-top: 12px; display: flex; gap: 10px; align-items: stretch; }
     .debt-linked-connector {
       width: 4px;
       border-radius: 4px;
-      background: linear-gradient(180deg, #3eb2ff, #7f73ff);
+      background: linear-gradient(180deg, #8b5cf6, #6366f1);
       flex-shrink: 0;
     }
     .debt-linked-inner {
       flex: 1;
       min-width: 0;
-      border: 1px solid #2b4b7f;
+      border: 1px solid var(--line);
       border-radius: 10px;
       padding: 10px 12px;
-      background: #0e1d3a;
+      background: #fff;
     }
-    .debt-linked-title { display: block; font-size: 13px; font-weight: 700; color: #dce9ff; margin-bottom: 6px; }
+    .debt-linked-title { display: block; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
     .debt-toggle-row { display: flex; align-items: flex-start; gap: 8px; }
-    .debt-toggle-row input[type="checkbox"] { width: auto; margin-top: 4px; flex-shrink: 0; accent-color: #3eb2ff; }
-    .debt-toggle-row label { cursor: pointer; font-size: 14px; color: #d9e5fd; line-height: 1.4; }
+    .debt-toggle-row input[type="checkbox"] { width: auto; margin-top: 4px; accent-color: #7c3aed; }
+    .debt-toggle-row label { cursor: pointer; font-size: 13px; color: var(--ink); }
+
+    .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
 
     .btn-small { padding: 6px 10px; font-size: 12px; white-space: normal; max-width: 150px; line-height: 1.35; }
-    .tag-ok { color: var(--success); font-weight: 700; font-size: 13px; white-space: normal; }
+    .tag-ok { color: #15803d; font-weight: 700; font-size: 13px; }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .stat-box {
+      border-radius: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--muted);
+      background: #fff;
+    }
+    .stat-box b { display: block; margin-top: 4px; font-size: 18px; color: var(--ink); }
+    .stat-box.emerald b { color: #059669; }
+    .stat-box.rose b { color: #e11d48; }
+    .stat-box.violet b { color: #7c3aed; }
+
+    .idea-type-toggle {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .idea-type-toggle label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      background: #fff;
+    }
+    .idea-type-toggle input { accent-color: #22c55e; width: auto; }
+    .idea-type-toggle input:checked + span { font-weight: 800; }
+
+    .idea-panels {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .idea-panel {
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      border: 1px dashed var(--line);
+      background: #fafafa;
+      color: var(--muted);
+    }
+    .idea-panel strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 13px; }
+
+    /* ملخص سفلي — بطاقات ملونة */
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .sum-card {
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    }
+    .sum-card b { display: block; font-size: 18px; margin-top: 6px; font-weight: 800; }
+    .sum-card.c1 { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .sum-card.c2 { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .sum-card.c3 { background: linear-gradient(135deg, #f97316, #ea580c); }
+    .sum-card.c4 { background: linear-gradient(135deg, #a855f7, #7c3aed); }
+    .sum-card.c5 { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+    .sum-card.c6 { background: linear-gradient(135deg, #f43f5e, #e11d48); }
+    .sum-card.c7 { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+
+    /* جداول */
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 960px) {
+      .tables-grid { grid-template-columns: 1fr; }
+      .app-layout { flex-direction: column; }
+      .app-sidebar {
+        width: 100%;
+        border-inline-start: none;
+        border-bottom: 1px solid var(--sidebar-border);
+        flex-direction: row;
+        flex-wrap: wrap;
+        padding: 14px;
+      }
+      .sidebar-nav { flex-direction: row; flex-wrap: wrap; flex: 1 1 auto; }
+      .nav-item { width: auto; padding: 8px 12px; font-size: 13px; }
+      .sidebar-widget { width: 100%; order: 10; }
+      .sidebar-logout { width: auto; margin-top: 0; order: 11; }
+    }
 
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td {
-      border-bottom: 1px solid #27436f;
-      padding: 8px 6px;
+      border-bottom: 1px solid var(--line);
+      padding: 9px 8px;
       text-align: right;
-      color: #c8d8f3;
-      white-space: nowrap;
+      color: var(--ink);
     }
     th {
-      font-size: 12px;
-      color: #a8bfdf;
+      font-size: 11px;
       text-transform: none;
-      background: #102144;
+      color: var(--muted);
+      font-weight: 700;
+      background: #f8fafc;
       position: sticky;
       top: 0;
       z-index: 1;
     }
 
     .data-table th:nth-child(3),
-    .data-table td:nth-child(3) { white-space: normal; max-width: 280px; word-break: break-word; }
-    .table-wrap { overflow-x: auto; border: 1px solid #2a4776; border-radius: 12px; }
-    .empty { color: #9eb3d5; text-align: center; padding: 12px; font-size: 13px; }
+    .data-table td:nth-child(3) { white-space: normal; max-width: 220px; word-break: break-word; }
 
-    .auth-box {
-      border: 1px solid #2b4a79;
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 12px;
-      background: #0d1b37;
-      margin-bottom: 12px;
-    }
-    .auth-status { font-size: 13px; color: #a8bfdc; margin-top: 8px; }
-    .auth-status.ok { color: var(--success); }
-    .hidden { display: none; }
-
-    .idea-tip {
-      margin-top: 10px;
-      border: 1px solid #5d4d1e;
-      border-radius: 10px;
-      background: #2a220c;
-      padding: 10px 12px;
-      font-size: 14px;
-      color: #f5db8b;
-    }
-    .idea-tip strong { display: block; margin-bottom: 4px; color: #ffd873; }
-    .idea-profit-weak { color: var(--danger); font-weight: 700; }
-    .idea-profit-good { color: var(--success); font-weight: 700; }
-
-    .sync-status {
-      font-size: 13px;
-      color: #c7d7ef;
-      margin: 8px 0 0;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: #102243;
-      border: 1px solid #2b4b7d;
-    }
-    .sync-status.ok {
-      color: #bff7df;
-      border-color: #2e805f;
-      background: #102d24;
+      background: #fff;
     }
 
-    .app-top-grid {
-      display: grid;
-      grid-template-columns: 1.05fr 0.95fr;
-      gap: 14px;
-      align-items: start;
-    }
+    .empty { color: var(--muted); text-align: center; padding: 14px; font-size: 13px; }
 
-    .section-switch {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }
-
-    .section-switch button.active {
-      background: linear-gradient(180deg, #2dcf8c, #1fa76f);
-      border-color: rgba(56, 211, 159, 0.55);
-      box-shadow: 0 8px 18px rgba(33, 174, 116, 0.3);
-      color: #fff;
-    }
-
-    .summary-list {
-      display: grid;
-      gap: 8px;
-    }
-
-    .summary-row {
-      border: 1px solid #294675;
-      border-radius: 10px;
-      background: linear-gradient(90deg, rgba(255,255,255,0.02), transparent), #0f1f3f;
-      padding: 8px 11px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 13px;
-      color: #bdd0ef;
-    }
-
-    .summary-row b {
-      font-size: 18px;
-      color: #d8ebff;
-    }
-
-    .summary-row.sales b { color: #73d4ff; }
-    .summary-row.profit b { color: #47e29a; }
-    .summary-row.reinvest b { color: #f0cc65; }
-    .summary-row.net b { color: #d48bff; }
-    .summary-row.capital b { color: #7dde8d; }
-    .summary-row.unpaid b { color: #ff7f94; }
-    .summary-row.paid b { color: #4ef4e1; }
-
+    /* تحليلات */
     .insights-grid {
       display: grid;
-      grid-template-columns: 1fr 1.2fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
+      grid-template-columns: 1fr 1.15fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
     }
 
     .mini-card {
-      border: 1px solid #2b4a7a;
+      border: 1px solid var(--line);
       border-radius: 12px;
-      background: #0d1c39;
-      min-height: 190px;
-      padding: 10px;
+      background: #fafafa;
+      min-height: 180px;
+      padding: 12px;
     }
 
     .mini-card h3 {
       margin: 0 0 10px;
-      font-size: 15px;
-      color: #d9e9ff;
-      font-weight: 700;
+      font-size: 14px;
+      color: var(--ink);
+      font-weight: 800;
     }
 
     .donut-demo {
-      width: 130px;
-      height: 130px;
+      width: 120px;
+      height: 120px;
       margin: 8px auto 6px;
       border-radius: 50%;
-      background: conic-gradient(#2ed69a 0 40%, #66b8ff 40% 70%, #f0c45e 70% 78%, #b579ff 78% 100%);
+      background: conic-gradient(#22c55e 0 40%, #3b82f6 40% 70%, #f97316 70% 78%, #a855f7 78% 100%);
       position: relative;
     }
     .donut-demo::after {
       content: "";
       position: absolute;
-      inset: 24px;
+      inset: 22px;
       border-radius: 50%;
-      background: #0d1c39;
+      background: #fafafa;
     }
 
     .line-demo {
-      height: 130px;
+      height: 120px;
       border-radius: 10px;
-      border: 1px solid #27436f;
-      background:
-        linear-gradient(180deg, transparent 95%, rgba(255,255,255,0.06) 95%),
-        linear-gradient(90deg, transparent 95%, rgba(255,255,255,0.05) 95%),
-        #0b1831;
-      background-size: 100% 26px, 24px 100%, auto;
+      border: 1px solid var(--line);
+      background: #fff;
       position: relative;
       overflow: hidden;
     }
-    .line-demo::before {
-      content: "";
-      position: absolute;
-      left: 8%;
-      right: 8%;
-      top: 56%;
-      height: 2px;
-      background: #68b9ff;
-      transform: skewY(-18deg);
-      box-shadow: 0 -22px 0 #68b9ff, 0 22px 0 #68b9ff;
-      opacity: 0.9;
-    }
 
-    .rank-list {
-      display: grid;
-      gap: 8px;
-      margin-top: 8px;
-    }
+    .rank-list { display: grid; gap: 8px; margin-top: 8px; }
     .rank-item {
-      border: 1px solid #2d4d7c;
+      border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 8px 9px;
+      padding: 8px 10px;
       display: flex;
       justify-content: space-between;
-      color: #c8daf7;
-      background: #102246;
+      color: var(--ink);
+      background: #fff;
+      font-size: 13px;
     }
 
     @media (max-width: 980px) {
-      .app-top-grid { grid-template-columns: 1fr; }
       .insights-grid { grid-template-columns: 1fr; }
-    }
-
-    @media (max-width: 760px) {
-      .container { margin: 12px auto; padding: 0 10px; }
-      .card { padding: 14px; }
-      .actions button { width: 100%; }
-      .grid { grid-template-columns: 1fr; }
-      .stat b { font-size: 21px; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="card" id="authPage">
-      <h2 style="margin:0 0 8px">تسجيل الدخول بـ Gmail</h2>
+  <div id="authPage" class="auth-wrap">
+    <div class="auth-card">
+      <h2>تسجيل الدخول بـ Gmail</h2>
       <div class="auth-box">
         <form id="authForm" autocomplete="on">
           <div class="grid">
@@ -369,218 +558,264 @@
             </div>
           </div>
           <div class="actions">
-            <button class="primary" type="submit" id="loginBtn">دخول</button>
-            <button class="ghost" type="button" id="signupBtn">إنشاء حساب بـ Gmail</button>
-            <button class="ghost" type="button" id="resetPasswordBtn">نسيت كلمة المرور؟</button>
+            <button class="btn-primary-light" type="submit" id="loginBtn">دخول</button>
+            <button class="btn-ghost-light" type="button" id="signupBtn">إنشاء حساب بـ Gmail</button>
+            <button class="btn-ghost-light" type="button" id="resetPasswordBtn">نسيت كلمة المرور؟</button>
           </div>
         </form>
         <div id="authStatus" class="auth-status"></div>
       </div>
     </div>
+  </div>
 
-    <div id="appPage" class="hidden">
-    <div class="section-switch">
-      <button class="ghost active" type="button" id="showSalesSectionBtn">قسم تسجيل المبيعات</button>
-      <button class="ghost" type="button" id="showIdeasSectionBtn">قسم خانة الأفكار</button>
-    </div>
-    <div class="app-top-grid">
-    <div class="card" id="salesSectionCard">
-      <div class="actions" style="margin-top:0; margin-bottom:10px;">
-        <button class="ghost" type="button" id="logoutBtnApp">تسجيل الخروج</button>
-      </div>
-      <h1>تسجيل المبيعات اليومية</h1>
-      <p>سجّل البيع اليومي مع وصف الدفعة، وأدخل إجمالي البيع؛ سيتم حساب الربح وإعادة الاستثمار 10% والربح الصافي تلقائيًا. خانة «حالة الدين» مستقلة ومربوطة بخانة الآجل: إن وُجد آجل اكتب المبلغ في «مبيعات غير مدفوعة» (أو ألغِ «البيع نقدًا كاملًا»). لاحقًا من الجدول يمكن تسجيل سداد الدين.</p>
-      <div id="syncStatus" class="sync-status">جاهز.</div>
+  <div id="appPage" class="hidden app-layout">
+    <main class="main-workspace">
+      <div class="workspace-inner" id="workspaceTop">
+        <h1 class="workspace-title">لوحة التحكم</h1>
 
-      <form id="saleForm">
-        <div class="grid">
-          <div>
-            <label for="date">التاريخ</label>
-            <input id="date" type="date" required />
-          </div>
-          <div>
-            <label for="product">اسم المنتج</label>
-            <input id="product" type="text" placeholder="مثال: معطر جو" required />
-          </div>
-          <div class="span-2">
-            <label for="description">وصف البيع (أي قطع، الحجم، الدفعة…)</label>
-            <textarea id="description" placeholder="مثال: 5 عبوات معطر جو، أو: دفعة مختلطة من العطور" required></textarea>
-          </div>
+        <div class="section-tabs" role="tablist">
+          <button class="section-tab active" type="button" id="showSalesSectionBtn" data-section="sales">قسم تسجيل المبيعات</button>
+          <button class="section-tab" type="button" id="showIdeasSectionBtn" data-section="ideas">قسم خانة الأفكار</button>
         </div>
 
-        <div class="form-section">
-          <h3 class="form-section-title">إجمالي البيع</h3>
-          <p class="form-section-lead">هذا القسم للفاتورة كاملة فقط (مبلغ البيع الإجمالي)، منفصل عن خانة الآجل أدناه.</p>
-          <div class="one-field">
-            <label for="totalSale">إجمالي البيع (د)</label>
-            <input id="totalSale" type="number" min="0" step="0.01" placeholder="50" required />
-          </div>
-        </div>
+        <div class="form-stack">
+          <div class="panel-card" id="salesSectionCard">
+            <h1>تسجيل بيع جديد</h1>
+            <p class="lead">سجّل البيع اليومي؛ يُحسب الربح وإعادة الاستثمار 10% والربح الصافي تلقائيًا.</p>
+            <div id="syncStatus" class="sync-status">جاهز.</div>
 
-        <div class="form-section form-section--debt">
-          <h3 class="form-section-title">الآجل (مبيعات غير مدفوعة)</h3>
-          <p class="form-section-lead">ما بقي على الزبون منفصل عن «إجمالي البيع». لا يتعدى مبلغ الآجل إجمالي البيع أعلاه.</p>
-          <div class="one-field">
-            <label for="unpaidAmount">مبيعات غير مدفوعة (د)</label>
-            <input id="unpaidAmount" type="number" min="0" step="0.01" placeholder="0" />
-            <div class="hint">المدفوع فور البيع = إجمالي البيع − هذا المبلغ.</div>
-          </div>
-
-          <div class="debt-linked-field" role="group" aria-labelledby="debtStatusTitle">
-            <div class="debt-linked-connector" aria-hidden="true"></div>
-            <div class="debt-linked-inner">
-              <span class="debt-linked-title" id="debtStatusTitle">حالة الدين (مربوطة بخانة الآجل أعلاه)</span>
-              <div class="debt-toggle-row">
-                <input type="checkbox" id="debtFullyPaid" checked />
-                <label for="debtFullyPaid">البيع نقدًا كاملًا — تم دفع الدين (لا يوجد آجل على هذه العملية)</label>
+            <form id="saleForm">
+              <div class="grid">
+                <div>
+                  <label for="date">التاريخ</label>
+                  <input id="date" type="date" required />
+                </div>
+                <div>
+                  <label for="product">اسم المنتج</label>
+                  <input id="product" type="text" placeholder="مثال: معطر جو" required />
+                </div>
+                <div class="span-2">
+                  <label for="description">وصف البيع</label>
+                  <textarea id="description" placeholder="مثال: 5 عبوات معطر جو" required></textarea>
+                </div>
               </div>
-              <div class="hint" style="margin-top: 8px">
-                عند التفعيل: يُعطّل مبلغ الآجل ويُعتبر 0. عند إلغائه: يُفعّل خانة «مبيعات غير مدفوعة». إن كتبتَ آجلًا أكبر من 0 يُلغى هذا الخيار تلقائيًا.
+
+              <div class="form-section">
+                <h3 class="form-section-title">إجمالي البيع</h3>
+                <p class="form-section-lead">مبلغ الفاتورة الكامل.</p>
+                <div class="one-field">
+                  <label for="totalSale">إجمالي البيع (د)</label>
+                  <input id="totalSale" type="number" min="0" step="0.01" placeholder="50" required />
+                </div>
+              </div>
+
+              <div class="form-section form-section--debt">
+                <h3 class="form-section-title">الآجل (مبيعات غير مدفوعة)</h3>
+                <p class="form-section-lead">ما بقي على الزبون منفصل عن «إجمالي البيع».</p>
+                <div class="one-field">
+                  <label for="unpaidAmount">مبيعات غير مدفوعة (د)</label>
+                  <input id="unpaidAmount" type="number" min="0" step="0.01" placeholder="0" />
+                  <div class="hint">المدفوع فور البيع = إجمالي البيع − هذا المبلغ.</div>
+                </div>
+
+                <div class="debt-linked-field" role="group" aria-labelledby="debtStatusTitle">
+                  <div class="debt-linked-connector" aria-hidden="true"></div>
+                  <div class="debt-linked-inner">
+                    <span class="debt-linked-title" id="debtStatusTitle">حالة الدين</span>
+                    <div class="debt-toggle-row">
+                      <input type="checkbox" id="debtFullyPaid" checked />
+                      <label for="debtFullyPaid">البيع نقدًا كاملًا — تم دفع الدين (لا يوجد آجل)</label>
+                    </div>
+                    <div class="hint" style="margin-top: 8px">
+                      عند التفعيل يُعتبر الآجل 0. إن كتبت آجلًا &gt; 0 يُلغى «البيع النقدي» تلقائيًا.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h3 class="form-section-title">رأس المال</h3>
+                <p class="form-section-lead">ما صرفته على البضاعة لهذه العملية.</p>
+                <div class="one-field">
+                  <label for="cost">رأس المال/التكلفة (د)</label>
+                  <input id="cost" type="number" min="0" step="0.01" placeholder="30" required />
+                </div>
+              </div>
+
+              <div class="actions">
+                <button class="btn-primary-light" type="submit">إضافة سجل اليوم</button>
+                <button class="btn-ghost-light" type="button" id="resetData">مسح كل السجلات</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="panel-card hidden-section" id="ideasSectionCard">
+            <h2>خانة الأفكار</h2>
+            <p class="lead">قيّم الفكرة قبل التنفيذ (منتج أو خدمة).</p>
+
+            <form id="ideaForm">
+              <div class="idea-type-toggle">
+                <label><input type="radio" name="ideaType" id="ideaTypeProduct" value="product" checked /><span>منتج</span></label>
+                <label><input type="radio" name="ideaType" id="ideaTypeService" value="service" /><span>خدمة</span></label>
+              </div>
+
+              <div class="grid">
+                <div>
+                  <label for="ideaName">اسم الفكرة</label>
+                  <input id="ideaName" type="text" placeholder="مثال: معطر صيفي" required />
+                </div>
+                <div class="span-2">
+                  <label for="ideaDescription">وصف بسيط</label>
+                  <textarea id="ideaDescription" placeholder="مثال: ريحة منعشة للسيارات" required></textarea>
+                </div>
+                <div>
+                  <label for="ideaCapital">رأس المال المتوقع (د)</label>
+                  <input id="ideaCapital" type="number" min="0" step="0.01" placeholder="40" required />
+                </div>
+                <div>
+                  <label for="ideaPrice">سعر البيع المتوقع (د)</label>
+                  <input id="ideaPrice" type="number" min="0" step="0.01" placeholder="10" required />
+                </div>
+                <div>
+                  <label for="ideaQty">الكمية المتوقعة</label>
+                  <input id="ideaQty" type="number" min="0" step="1" placeholder="10" required />
+                </div>
+              </div>
+
+              <div class="stats-row">
+                <div class="stat-box emerald">إجمالي البيع المتوقع <b id="ideaExpectedSales">0.00 د</b></div>
+                <div class="stat-box violet">الربح المتوقع <b id="ideaExpectedProfit">0.00 د</b></div>
+                <div class="stat-box rose">هامش الربح <b id="ideaProfitMargin">0%</b></div>
+              </div>
+
+              <div class="idea-panels">
+                <div class="idea-panel">
+                  <strong>تلميح</strong>
+                  قارن هامش الربح بين الأفكار قبل اختيار أي مشروع تبدأ به.
+                </div>
+                <div class="idea-panel">
+                  <strong>كيف نحسب الربح؟</strong>
+                  إجمالي البيع المتوقع = السعر × الكمية. الربح المتوقع = ذلك الإجمالي − رأس المال.
+                </div>
+              </div>
+
+              <div class="actions">
+                <button class="btn-primary-light" type="submit">إضافة فكرة</button>
+                <button class="btn-ghost-light" type="button" id="resetIdeas">مسح كل الأفكار</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="tables-grid">
+          <div class="panel-card" id="ideasLogSection">
+            <h2>سجل الأفكار</h2>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>الاسم</th>
+                    <th>النوع</th>
+                    <th>الوصف</th>
+                    <th>رأس المال</th>
+                    <th>السعر</th>
+                    <th>الكمية</th>
+                    <th>إجمالي البيع</th>
+                    <th>الربح المتوقع</th>
+                    <th>الهامش</th>
+                  </tr>
+                </thead>
+                <tbody id="ideaRows"></tbody>
+              </table>
+            </div>
+            <div id="ideasEmptyState" class="empty">لا توجد أفكار بعد.</div>
+          </div>
+
+          <div class="panel-card" id="dailyLogSection">
+            <h2>سجل الأيام</h2>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>التاريخ</th>
+                    <th>المنتج</th>
+                    <th>الوصف</th>
+                    <th>إجمالي البيع</th>
+                    <th>آجل (أصل)</th>
+                    <th>متبقي الآجل</th>
+                    <th>المدفوع</th>
+                    <th>دفع الدين</th>
+                    <th>التكلفة</th>
+                    <th>الربح</th>
+                    <th>10% استثمار</th>
+                    <th>صافي الربح</th>
+                    <th>رأس المال الجديد</th>
+                  </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+              </table>
+            </div>
+            <div id="emptyState" class="empty">لا توجد بيانات بعد. أضف أول عملية بيع.</div>
+          </div>
+        </div>
+
+        <div class="summary-strip" id="projectSummarySection">
+          <div class="sum-card c1"><span>إجمالي المبيعات</span><b id="totalSales">0.00 د</b></div>
+          <div class="sum-card c2"><span>إجمالي الربح</span><b id="totalProfit">0.00 د</b></div>
+          <div class="sum-card c3"><span>إعادة استثمار 10%</span><b id="totalReinvest">0.00 د</b></div>
+          <div class="sum-card c4"><span>الربح الصافي</span><b id="totalNetProfit">0.00 د</b></div>
+          <div class="sum-card c5"><span>رأس المال الحالي</span><b id="currentCapital">0.00 د</b></div>
+          <div class="sum-card c6"><span>غير المدفوع</span><b id="totalUnpaid">0.00 د</b></div>
+          <div class="sum-card c7"><span>المحصّل</span><b id="totalPaid">0.00 د</b></div>
+        </div>
+
+        <div class="panel-card" id="reportsSection">
+          <h2>التحليلات السريعة</h2>
+          <div class="insights-grid">
+            <div class="mini-card">
+              <h3>نظرة سريعة</h3>
+              <div class="donut-demo" id="insightDonut"></div>
+              <div class="hint" id="insightDonutHint" style="text-align:center">توزيع المبيعات والمحصّل والاستثمار.</div>
+            </div>
+            <div class="mini-card">
+              <h3>تطور المبيعات (آخر 7 أيام)</h3>
+              <div class="line-demo" id="insightLine"></div>
+              <div class="hint" id="insightLineHint" style="text-align:center;margin-top:8px"></div>
+            </div>
+            <div class="mini-card">
+              <h3>أفضل الأفكار</h3>
+              <div class="rank-list" id="bestIdeasList">
+                <div class="rank-item"><span>لا توجد أفكار كافية بعد</span><strong>—</strong></div>
               </div>
             </div>
           </div>
         </div>
-
-        <div class="form-section">
-          <h3 class="form-section-title">رأس المال</h3>
-          <p class="form-section-lead">ما صرفته على البضاعة لهذه العملية.</p>
-          <div class="one-field">
-            <label for="cost">رأس المال/تكلفة السلعة (د)</label>
-            <input id="cost" type="number" min="0" step="0.01" placeholder="30" required />
-          </div>
-        </div>
-
-        <div class="actions">
-          <button class="primary" type="submit">إضافة سجل اليوم</button>
-          <button class="ghost" type="button" id="resetData">مسح كل السجلات</button>
-        </div>
-      </form>
-    </div>
-
-    <div class="card" id="ideasSectionCard">
-      <h2>خانة الأفكار</h2>
-      <p>سجّل أي فكرة مشروع قبل التنفيذ، وخلي الحسابات تحددلك إذا الفكرة مربحة ولا لا.</p>
-
-      <form id="ideaForm">
-        <div class="grid">
-          <div>
-            <label for="ideaName">📌 اسم الفكرة</label>
-            <input id="ideaName" type="text" placeholder="مثال: معطر صيفي جديد" required />
-          </div>
-          <div class="span-2">
-            <label for="ideaDescription">📝 وصف بسيط (شنوّا الفكرة؟)</label>
-            <textarea id="ideaDescription" placeholder="مثال: ريحة منعشة للسيارات" required></textarea>
-          </div>
-          <div>
-            <label for="ideaCapital">💰 رأس المال المتوقع (د)</label>
-            <input id="ideaCapital" type="number" min="0" step="0.01" placeholder="40" required />
-          </div>
-          <div>
-            <label for="ideaPrice">💸 سعر البيع المتوقع (د)</label>
-            <input id="ideaPrice" type="number" min="0" step="0.01" placeholder="10" required />
-          </div>
-          <div>
-            <label for="ideaQty">🔢 الكمية المتوقعة للبيع</label>
-            <input id="ideaQty" type="number" min="0" step="1" placeholder="10" required />
-          </div>
-        </div>
-
-        <div class="stats">
-          <div class="stat">📊 إجمالي البيع المتوقع: <b id="ideaExpectedSales">0.00 د</b></div>
-          <div class="stat">📈 الربح المتوقع: <b id="ideaExpectedProfit">0.00 د</b></div>
-        </div>
-
-        <div class="actions">
-          <button class="primary" type="submit">إضافة فكرة</button>
-          <button class="ghost" type="button" id="resetIdeas">مسح كل الأفكار</button>
-        </div>
-      </form>
-    </div>
-    </div>
-
-    <div class="card">
-      <h2>سجل الأفكار</h2>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>اسم الفكرة</th>
-              <th>الوصف</th>
-              <th>رأس المال</th>
-              <th>سعر البيع</th>
-              <th>الكمية</th>
-              <th>إجمالي البيع المتوقع</th>
-              <th>الربح المتوقع</th>
-            </tr>
-          </thead>
-          <tbody id="ideaRows"></tbody>
-        </table>
       </div>
-      <div id="ideasEmptyState" class="empty">لا توجد أفكار بعد. أضف أول فكرة.</div>
-    </div>
+    </main>
 
-    <div class="card">
-      <h2>ملخص المشروع</h2>
-      <div class="summary-list">
-        <div class="summary-row sales"><span>إجمالي المبيعات</span><b id="totalSales">0.00 د</b></div>
-        <div class="summary-row profit"><span>إجمالي الربح</span><b id="totalProfit">0.00 د</b></div>
-        <div class="summary-row reinvest"><span>إجمالي إعادة الاستثمار (10%)</span><b id="totalReinvest">0.00 د</b></div>
-        <div class="summary-row net"><span>إجمالي الربح الصافي</span><b id="totalNetProfit">0.00 د</b></div>
-        <div class="summary-row capital"><span>رأس المال الحالي</span><b id="currentCapital">0.00 د</b></div>
-        <div class="summary-row unpaid"><span>إجمالي غير المدفوع (مستحقات حالية)</span><b id="totalUnpaid">0.00 د</b></div>
-        <div class="summary-row paid"><span>إجمالي المحصّل (ما دخل فعليًا)</span><b id="totalPaid">0.00 د</b></div>
-      </div>
-    </div>
+    <aside class="app-sidebar" aria-label="القائمة الرئيسية">
+      <div class="sidebar-brand"><span class="icon">📊</span> مشروعي</div>
+      <nav class="sidebar-nav">
+        <button type="button" class="nav-item active" id="navSales" data-section="sales">المبيعات اليومية</button>
+        <button type="button" class="nav-item" id="navDailyLog">سجل الأيام</button>
+        <button type="button" class="nav-item" id="navIdeasForm" data-section="ideas">خانة الأفكار</button>
+        <button type="button" class="nav-item" id="navSummary">ملخص المشروع</button>
+        <button type="button" class="nav-item" id="navReports">التقارير</button>
+        <button type="button" class="nav-item" id="navSettings">الإعدادات</button>
+      </nav>
 
-    <div class="card">
-      <h2>سجل الأيام</h2>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>التاريخ</th>
-              <th>المنتج</th>
-              <th>الوصف</th>
-              <th>إجمالي البيع</th>
-              <th>آجل (أصل)</th>
-              <th>متبقي الآجل</th>
-              <th>المدفوع حتى الآن</th>
-              <th>دفع الدين</th>
-              <th>التكلفة</th>
-              <th>الربح</th>
-              <th>10% إعادة استثمار</th>
-              <th>الربح الصافي</th>
-              <th>رأس المال الجديد</th>
-            </tr>
-          </thead>
-          <tbody id="rows"></tbody>
-        </table>
+      <div class="sidebar-widget">
+        <div class="sidebar-widget-row">
+          <span>إجمالي الربح</span>
+          <span class="pill-trend" id="sidebarProfitTrend">—</span>
+        </div>
+        <div class="sidebar-widget-row"><span>صافي الربح</span><b id="sidebarNetProfit">0.00 د</b></div>
+        <div class="sidebar-widget-row"><span>رأس المال الحالي</span><b id="sidebarCapital">0.00 د</b></div>
+        <div class="sidebar-widget-row"><span>المستحقات (آجل)</span><b id="sidebarReceivables">0.00 د</b></div>
       </div>
-      <div id="emptyState" class="empty">لا توجد بيانات بعد. أضف أول عملية بيع.</div>
-    </div>
 
-    <div class="card">
-      <h2>التحليلات السريعة</h2>
-      <div class="insights-grid">
-        <div class="mini-card">
-          <h3>نظرة سريعة</h3>
-          <div class="donut-demo" id="insightDonut"></div>
-          <div class="hint" id="insightDonutHint" style="text-align:center">توزيع مبسط للمبيعات والربح والاستثمار.</div>
-        </div>
-        <div class="mini-card">
-          <h3>تطور المبيعات (آخر 7 أيام)</h3>
-          <div class="line-demo" id="insightLine"></div>
-          <div class="hint" id="insightLineHint" style="text-align:center;margin-top:8px">عرض تقريبي، وسيتم ربطه ببياناتك الفعلية لاحقًا.</div>
-        </div>
-        <div class="mini-card">
-          <h3>أفضل الأفكار</h3>
-          <div class="rank-list" id="bestIdeasList">
-            <div class="rank-item"><span>لا توجد أفكار كافية بعد</span><strong>—</strong></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    </div>
+      <button type="button" class="sidebar-logout" id="logoutBtnApp">تسجيل الخروج</button>
+    </aside>
   </div>
 
   <script defer src="./supabase-js-v2.min.js"></script>

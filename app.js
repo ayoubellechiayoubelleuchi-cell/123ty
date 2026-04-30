@@ -63,6 +63,21 @@ const dom = {
   showIdeasSectionBtn: document.getElementById("showIdeasSectionBtn"),
   salesSectionCard: document.getElementById("salesSectionCard"),
   ideasSectionCard: document.getElementById("ideasSectionCard"),
+  navSales: document.getElementById("navSales"),
+  navDailyLog: document.getElementById("navDailyLog"),
+  navIdeasForm: document.getElementById("navIdeasForm"),
+  navSummary: document.getElementById("navSummary"),
+  navReports: document.getElementById("navReports"),
+  navSettings: document.getElementById("navSettings"),
+  workspaceTop: document.getElementById("workspaceTop"),
+  dailyLogSection: document.getElementById("dailyLogSection"),
+  ideasLogSection: document.getElementById("ideasLogSection"),
+  projectSummarySection: document.getElementById("projectSummarySection"),
+  reportsSection: document.getElementById("reportsSection"),
+  sidebarNetProfit: document.getElementById("sidebarNetProfit"),
+  sidebarCapital: document.getElementById("sidebarCapital"),
+  sidebarReceivables: document.getElementById("sidebarReceivables"),
+  sidebarProfitTrend: document.getElementById("sidebarProfitTrend"),
   authStatus: document.getElementById("authStatus"),
   syncStatus: document.getElementById("syncStatus"),
   debtFullyPaid: document.getElementById("debtFullyPaid"),
@@ -84,8 +99,11 @@ const dom = {
   },
   ideaTotals: {
     expectedSalesEl: document.getElementById("ideaExpectedSales"),
-    expectedProfitEl: document.getElementById("ideaExpectedProfit")
+    expectedProfitEl: document.getElementById("ideaExpectedProfit"),
+    profitMarginEl: document.getElementById("ideaProfitMargin")
   },
+  ideaTypeProduct: document.getElementById("ideaTypeProduct"),
+  ideaTypeService: document.getElementById("ideaTypeService"),
   totals: {
     totalSalesEl: document.getElementById("totalSales"),
     totalProfitEl: document.getElementById("totalProfit"),
@@ -347,6 +365,17 @@ function setActiveSection(section) {
   dom.showIdeasSectionBtn?.classList.toggle("active", !showSales);
 }
 
+function applySignedOutState(message = "تم تسجيل الخروج.") {
+  state.currentUser = null;
+  state.records = [];
+  state.ideas = [];
+  render();
+  renderIdeas();
+  setPageMode(false);
+  setAppEnabled(false);
+  setAuthStatus(message, true);
+}
+
 async function activateAppForUser(user, statusSuffix = "") {
   authTrace("activate_app:start", { userId: user?.id || null, statusSuffix });
   if (!user) return;
@@ -419,6 +448,14 @@ function backupIdeasStorageKey() {
   return `${IDEAS_STORAGE_KEY}:backup`;
 }
 
+function emergencyRecordsKey() {
+  return `${STORAGE_KEY}:emergency`;
+}
+
+function emergencyIdeasKey() {
+  return `${IDEAS_STORAGE_KEY}:emergency`;
+}
+
 function clampUnpaid(totalSale, unpaidRaw) {
   const t = Number(totalSale) || 0;
   let u = Number(unpaidRaw);
@@ -463,6 +500,7 @@ function loadRecords() {
     let raw = localStorage.getItem(userStorageKey());
     if (!raw) raw = localStorage.getItem(backupStorageKey());
     if (!raw) raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(emergencyRecordsKey());
     const parsed = raw ? JSON.parse(raw) : [];
     const list = normalizeRecordsStep2(normalizeRecordsStep1(Array.isArray(parsed) ? parsed : []));
     log("info", "local_load", { key: userStorageKey(), count: list.length });
@@ -473,10 +511,14 @@ function loadRecords() {
   }
 }
 
-function saveRecords() {
+function saveRecords(options = {}) {
+  const { allowEmptyBackup = false } = options;
   const payload = JSON.stringify(state.records);
   localStorage.setItem(userStorageKey(), payload);
-  localStorage.setItem(backupStorageKey(), payload);
+  localStorage.setItem(emergencyRecordsKey(), payload);
+  if (state.records.length > 0 || allowEmptyBackup) {
+    localStorage.setItem(backupStorageKey(), payload);
+  }
   log("info", "local_save", { key: userStorageKey(), count: state.records.length });
 }
 
@@ -485,6 +527,7 @@ function loadIdeas() {
     let raw = localStorage.getItem(userIdeasStorageKey());
     if (!raw) raw = localStorage.getItem(backupIdeasStorageKey());
     if (!raw) raw = localStorage.getItem(IDEAS_STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(emergencyIdeasKey());
     const parsed = raw ? JSON.parse(raw) : [];
     const list = Array.isArray(parsed) ? parsed : [];
     log("info", "ideas_local_load", { key: userIdeasStorageKey(), count: list.length });
@@ -495,10 +538,14 @@ function loadIdeas() {
   }
 }
 
-function saveIdeas() {
+function saveIdeas(options = {}) {
+  const { allowEmptyBackup = false } = options;
   const payload = JSON.stringify(state.ideas);
   localStorage.setItem(userIdeasStorageKey(), payload);
-  localStorage.setItem(backupIdeasStorageKey(), payload);
+  localStorage.setItem(emergencyIdeasKey(), payload);
+  if (state.ideas.length > 0 || allowEmptyBackup) {
+    localStorage.setItem(backupIdeasStorageKey(), payload);
+  }
   log("info", "ideas_local_save", { key: userIdeasStorageKey(), count: state.ideas.length });
 }
 
@@ -600,10 +647,12 @@ function computeIdea(base) {
   const qty = Number(base.qty) || 0;
   const expectedSales = price * qty;
   const expectedProfit = expectedSales - capital;
+  const ideaType = base.ideaType === "service" ? "service" : "product";
   return {
     ideaId: newRecordId(),
     name: base.name,
     description: base.description,
+    ideaType,
     capital,
     price,
     qty,
@@ -619,7 +668,7 @@ function renderDebtCell(record) {
     const when = record.debtClearedAt ? escapeHtml(String(record.debtClearedAt)) : "";
     return `<span class="tag-ok">تم دفع الدين</span>${when ? `<br><span style="font-size:12px;color:var(--muted)">${when}</span>` : ""}`;
   }
-  return `<button type="button" class="ghost btn-small" data-debt-paid="${escapeHtml(String(record.recordId || ""))}">تسجيل دفع الدين</button>`;
+  return `<button type="button" class="btn-ghost-light btn-small" data-debt-paid="${escapeHtml(String(record.recordId || ""))}">تسجيل دفع الدين</button>`;
 }
 
 function render() {
@@ -672,6 +721,17 @@ function render() {
   dom.totals.totalUnpaidEl.textContent = currency(sumRemaining);
   dom.totals.totalPaidEl.textContent = currency(sumCollected);
   dom.emptyState.style.display = state.records.length === 0 ? "block" : "none";
+
+  if (dom.sidebarNetProfit) dom.sidebarNetProfit.textContent = currency(totalNetProfit);
+  if (dom.sidebarCapital) dom.sidebarCapital.textContent = currency(currentCapital);
+  if (dom.sidebarReceivables) dom.sidebarReceivables.textContent = currency(sumRemaining);
+  if (dom.sidebarProfitTrend) {
+    if (state.records.length === 0) dom.sidebarProfitTrend.textContent = "—";
+    else if (totalProfit > 0) dom.sidebarProfitTrend.textContent = "+ نشاط";
+    else if (totalProfit < 0) dom.sidebarProfitTrend.textContent = "تنبيه";
+    else dom.sidebarProfitTrend.textContent = "متعادل";
+  }
+
   log("info", "render_done", { rowsRendered: state.records.length });
 }
 
@@ -681,8 +741,10 @@ function renderIdeasPreview() {
   const qty = Number(dom.ideaFields.qty.value) || 0;
   const expectedSales = price * qty;
   const expectedProfit = expectedSales - capital;
+  const marginPct = expectedSales > 0 ? Math.round((expectedProfit / expectedSales) * 100) : 0;
   dom.ideaTotals.expectedSalesEl.textContent = currency(expectedSales);
   dom.ideaTotals.expectedProfitEl.textContent = currency(expectedProfit);
+  if (dom.ideaTotals.profitMarginEl) dom.ideaTotals.profitMarginEl.textContent = `${marginPct}%`;
 
   if (!dom.ideaAdvice) return;
   if (expectedProfit <= 0) {
@@ -694,18 +756,28 @@ function renderIdeasPreview() {
     "<strong>💡 نصيحة قوية</strong><span class='idea-profit-good'>فكرة فيها ربح واضح ✅</span> — تنجم تركز عليها بعد مقارنة باقي الأفكار.";
 }
 
+function ideaTypeLabel(idea) {
+  const t = idea?.ideaType || "product";
+  return t === "service" ? "خدمة" : "منتج";
+}
+
 function renderIdeas() {
   dom.ideaRowsContainer.innerHTML = "";
   for (const idea of state.ideas) {
+    const sales = Number(idea.expectedSales) || 0;
+    const profit = Number(idea.expectedProfit) || 0;
+    const marginPct = sales > 0 ? Math.round((profit / sales) * 100) : 0;
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(String(idea.name || ""))}</td>
+      <td>${escapeHtml(ideaTypeLabel(idea))}</td>
       <td>${escapeHtml(String(idea.description || ""))}</td>
       <td>${currency(Number(idea.capital) || 0)}</td>
       <td>${currency(Number(idea.price) || 0)}</td>
       <td>${Number(idea.qty) || 0}</td>
-      <td>${currency(Number(idea.expectedSales) || 0)}</td>
-      <td>${currency(Number(idea.expectedProfit) || 0)}</td>
+      <td>${currency(sales)}</td>
+      <td>${currency(profit)}</td>
+      <td>${marginPct}%</td>
     `;
     dom.ideaRowsContainer.appendChild(tr);
   }
@@ -863,7 +935,6 @@ async function handleLogin() {
     }
     if (!data?.user) return setAuthStatus("تمت المحاولة لكن لم تصل بيانات مستخدم. حاول مرة أخرى.", false);
     authTrace("login:success", { userId: data.user.id || null });
-    forceShowApp();
     await activateAppForUser(data.user);
   });
 }
@@ -938,14 +1009,7 @@ function bindAuthEvents() {
   dom.logoutBtnApp?.addEventListener("click", async () => {
     authTrace("event:click_logout", {});
     // Always logout locally first so the button never appears "stuck".
-    state.currentUser = null;
-    state.records = [];
-    state.ideas = [];
-    render();
-    renderIdeas();
-    setPageMode(false);
-    setAppEnabled(false);
-    setAuthStatus("تم تسجيل الخروج.", true);
+    applySignedOutState("تم تسجيل الخروج.");
 
     try {
       if (!state.db) ensureSupabaseClient();
@@ -989,14 +1053,7 @@ function init() {
       }
 
       if (event === "SIGNED_OUT") {
-        state.currentUser = null;
-        state.records = [];
-        state.ideas = [];
-        render();
-        renderIdeas();
-        setPageMode(false);
-        setAppEnabled(false);
-        setAuthStatus("تم تسجيل الخروج.", true);
+        applySignedOutState("تم تسجيل الخروج.");
         return;
       }
 
@@ -1018,6 +1075,21 @@ function init() {
   dom.showSalesSectionBtn?.addEventListener("click", () => setActiveSection("sales"));
   dom.showIdeasSectionBtn?.addEventListener("click", () => setActiveSection("ideas"));
   setActiveSection("sales");
+
+  dom.navSales?.addEventListener("click", () => {
+    setActiveSection("sales");
+    scrollToPanel(dom.workspaceTop);
+  });
+  dom.navIdeasForm?.addEventListener("click", () => {
+    setActiveSection("ideas");
+    scrollToPanel(dom.workspaceTop);
+  });
+  dom.navDailyLog?.addEventListener("click", () => scrollToPanel(dom.dailyLogSection));
+  dom.navSummary?.addEventListener("click", () => scrollToPanel(dom.projectSummarySection));
+  dom.navReports?.addEventListener("click", () => scrollToPanel(dom.reportsSection));
+  dom.navSettings?.addEventListener("click", () => {
+    alert("الإعدادات ستتوفر لاحقًا.");
+  });
 
   dom.fields.unpaidAmount.addEventListener("input", () => {
     const str = dom.fields.unpaidAmount.value.trim();
@@ -1105,9 +1177,12 @@ function init() {
   dom.ideaForm.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
+    const ideaType =
+      dom.ideaTypeService?.checked ? "service" : dom.ideaTypeProduct?.checked ? "product" : "product";
     const base = {
       name: dom.ideaFields.name.value.trim(),
       description: dom.ideaFields.description.value.trim(),
+      ideaType,
       capital: Number(dom.ideaFields.capital.value),
       price: Number(dom.ideaFields.price.value),
       qty: Number(dom.ideaFields.qty.value)
@@ -1126,7 +1201,7 @@ function init() {
     if (!state.currentUser) return;
     if (!confirm("هل أنت متأكد من حذف كل الأفكار؟")) return;
     state.ideas = [];
-    saveIdeas();
+    saveIdeas({ allowEmptyBackup: true });
     renderIdeas();
     renderIdeasPreview();
   });
@@ -1136,7 +1211,7 @@ function init() {
     if (!confirm("هل أنت متأكد من حذف كل السجلات؟")) return;
     log("warn", "reset_all_local", { previousCount: state.records.length });
     state.records = [];
-    saveRecords();
+    saveRecords({ allowEmptyBackup: true });
     await deleteAllRemote();
     render();
   });
