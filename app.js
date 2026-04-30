@@ -74,6 +74,7 @@ const dom = {
   ideasLogSection: document.getElementById("ideasLogSection"),
   projectSummarySection: document.getElementById("projectSummarySection"),
   reportsSection: document.getElementById("reportsSection"),
+  settingsSection: document.getElementById("settingsSection"),
   sidebarNetProfit: document.getElementById("sidebarNetProfit"),
   sidebarCapital: document.getElementById("sidebarCapital"),
   sidebarReceivables: document.getElementById("sidebarReceivables"),
@@ -357,12 +358,36 @@ function setAppEnabled(enabled) {
   dom.resetBtn.disabled = !enabled;
 }
 
+const SIDEBAR_NAV_IDS = ["navSales", "navDailyLog", "navIdeasForm", "navSummary", "navReports", "navSettings"];
+
+function setSidebarNavActive(activeId) {
+  for (const id of SIDEBAR_NAV_IDS) {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle("active", id === activeId);
+  }
+}
+
+function scrollToPanel(el) {
+  if (!el) return;
+  try {
+    el.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+  } catch {
+    try {
+      el.scrollIntoView(true);
+    } catch {
+      const y = el.getBoundingClientRect().top + window.scrollY - 12;
+      window.scrollTo(0, Math.max(0, y));
+    }
+  }
+}
+
 function setActiveSection(section) {
   const showSales = section !== "ideas";
-  dom.salesSectionCard?.classList.toggle("hidden", !showSales);
-  dom.ideasSectionCard?.classList.toggle("hidden", showSales);
+  dom.salesSectionCard?.classList.toggle("hidden-section", !showSales);
+  dom.ideasSectionCard?.classList.toggle("hidden-section", showSales);
   dom.showSalesSectionBtn?.classList.toggle("active", showSales);
   dom.showIdeasSectionBtn?.classList.toggle("active", !showSales);
+  setSidebarNavActive(showSales ? "navSales" : "navIdeasForm");
 }
 
 function applySignedOutState(message = "تم تسجيل الخروج.") {
@@ -1084,11 +1109,21 @@ function init() {
     setActiveSection("ideas");
     scrollToPanel(dom.workspaceTop);
   });
-  dom.navDailyLog?.addEventListener("click", () => scrollToPanel(dom.dailyLogSection));
-  dom.navSummary?.addEventListener("click", () => scrollToPanel(dom.projectSummarySection));
-  dom.navReports?.addEventListener("click", () => scrollToPanel(dom.reportsSection));
+  dom.navDailyLog?.addEventListener("click", () => {
+    scrollToPanel(dom.dailyLogSection);
+    setSidebarNavActive("navDailyLog");
+  });
+  dom.navSummary?.addEventListener("click", () => {
+    scrollToPanel(dom.projectSummarySection);
+    setSidebarNavActive("navSummary");
+  });
+  dom.navReports?.addEventListener("click", () => {
+    scrollToPanel(dom.reportsSection);
+    setSidebarNavActive("navReports");
+  });
   dom.navSettings?.addEventListener("click", () => {
-    alert("الإعدادات ستتوفر لاحقًا.");
+    scrollToPanel(dom.settingsSection);
+    setSidebarNavActive("navSettings");
   });
 
   dom.fields.unpaidAmount.addEventListener("input", () => {
