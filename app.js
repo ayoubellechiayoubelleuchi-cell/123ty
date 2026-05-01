@@ -105,6 +105,9 @@ const dom = {
   },
   ideaTypeProduct: document.getElementById("ideaTypeProduct"),
   ideaTypeService: document.getElementById("ideaTypeService"),
+  ideaTypeHint: document.getElementById("ideaTypeHint"),
+  ideaPriceLabel: document.getElementById("ideaPriceLabel"),
+  ideaQtyLabel: document.getElementById("ideaQtyLabel"),
   totals: {
     totalSalesEl: document.getElementById("totalSales"),
     totalProfitEl: document.getElementById("totalProfit"),
@@ -786,6 +789,24 @@ function ideaTypeLabel(idea) {
   return t === "service" ? "خدمة" : "منتج";
 }
 
+function syncIdeaTypeUi() {
+  const isService = !!dom.ideaTypeService?.checked;
+  if (dom.ideaPriceLabel) {
+    dom.ideaPriceLabel.textContent = isService ? "سعر الخدمة المتوقع (د)" : "سعر البيع المتوقع (د)";
+  }
+  if (dom.ideaQtyLabel) {
+    dom.ideaQtyLabel.textContent = isService ? "عدد الزبائن المتوقع" : "الكمية المتوقعة";
+  }
+  if (dom.ideaFields.qty) {
+    dom.ideaFields.qty.placeholder = isService ? "عدد الزبائن (مثال: 10)" : "10";
+  }
+  if (dom.ideaTypeHint) {
+    dom.ideaTypeHint.innerHTML = isService
+      ? "اختر النوع قبل إدخال الفكرة: <strong>منتج = بيع + مخزون + الكمية المتوقعة</strong> — <strong>خدمة = عمل + زبائن + عدد الزبائن المتوقع</strong>"
+      : "اختر النوع قبل إدخال الفكرة: <strong>منتج = بيع + مخزون + الكمية المتوقعة</strong> — <strong>خدمة = عمل + زبائن + عدد الزبائن المتوقع</strong>";
+  }
+}
+
 function renderIdeas() {
   dom.ideaRowsContainer.innerHTML = "";
   for (const idea of state.ideas) {
@@ -1208,6 +1229,8 @@ function init() {
   for (const field of [dom.ideaFields.capital, dom.ideaFields.price, dom.ideaFields.qty]) {
     field.addEventListener("input", renderIdeasPreview);
   }
+  dom.ideaTypeProduct?.addEventListener("change", syncIdeaTypeUi);
+  dom.ideaTypeService?.addEventListener("change", syncIdeaTypeUi);
 
   dom.ideaForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1229,6 +1252,7 @@ function init() {
     saveIdeas();
     renderIdeas();
     dom.ideaForm.reset();
+    syncIdeaTypeUi();
     renderIdeasPreview();
   });
 
@@ -1254,6 +1278,7 @@ function init() {
   refreshAuthButtons();
   setAuthStatus("النظام جاهز. يمكنك تسجيل الدخول أو إنشاء حساب.", true);
   refreshSessionState();
+  syncIdeaTypeUi();
   renderIdeasPreview();
   log("info", "init_done", {});
 }
