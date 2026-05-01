@@ -60,6 +60,8 @@ const dom = {
   resetInvestorsBtn: document.getElementById("resetInvestors"),
   deletionLogList: document.getElementById("deletionLogList"),
   appPage: document.getElementById("appPage"),
+  sidebarBackdrop: document.getElementById("sidebarBackdrop"),
+  sidebarEdgeBtn: document.getElementById("sidebarEdgeBtn"),
   authPage: document.getElementById("authPage"),
   authForm: document.getElementById("authForm"),
   emailInput: document.getElementById("emailInput"),
@@ -121,6 +123,7 @@ const dom = {
   ideaTypeProduct: document.getElementById("ideaTypeProduct"),
   ideaTypeService: document.getElementById("ideaTypeService"),
   sendToInvestors: document.getElementById("sendToInvestors"),
+  ideaInvestorPhone: document.getElementById("ideaInvestorPhone"),
   ideaTypeHint: document.getElementById("ideaTypeHint"),
   ideaPriceLabel: document.getElementById("ideaPriceLabel"),
   ideaQtyLabel: document.getElementById("ideaQtyLabel"),
@@ -400,6 +403,39 @@ function scrollToPanel(el) {
       window.scrollTo(0, Math.max(0, y));
     }
   }
+}
+
+function isMobileSidebarLayout() {
+  return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 960px)").matches;
+}
+
+function setSidebarDrawerOpen(open) {
+  if (!dom.appPage) return;
+  dom.appPage.classList.toggle("sidebar-open", !!open);
+  if (dom.sidebarEdgeBtn) dom.sidebarEdgeBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  if (dom.sidebarBackdrop) dom.sidebarBackdrop.setAttribute("aria-hidden", open ? "false" : "true");
+}
+
+function closeSidebarDrawerIfMobile() {
+  if (isMobileSidebarLayout()) setSidebarDrawerOpen(false);
+}
+
+function toggleSidebarDrawer() {
+  if (!dom.appPage) return;
+  setSidebarDrawerOpen(!dom.appPage.classList.contains("sidebar-open"));
+}
+
+function bindSidebarDrawerUi() {
+  dom.sidebarEdgeBtn?.addEventListener("click", () => toggleSidebarDrawer());
+  dom.sidebarBackdrop?.addEventListener("click", () => setSidebarDrawerOpen(false));
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!dom.appPage?.classList.contains("sidebar-open")) return;
+    setSidebarDrawerOpen(false);
+  });
+  window.addEventListener("resize", () => {
+    if (!isMobileSidebarLayout()) setSidebarDrawerOpen(false);
+  });
 }
 
 function setActiveSection(section) {
@@ -787,6 +823,15 @@ function computeRecord(base) {
   };
 }
 
+function investorPhoneDigits(raw) {
+  return String(raw || "").replace(/\D/g, "");
+}
+
+function isValidInvestorPhone(raw) {
+  const digits = investorPhoneDigits(raw);
+  return digits.length >= 8 && digits.length <= 15;
+}
+
 function computeIdea(base) {
   const capital = Number(base.capital) || 0;
   const price = Number(base.price) || 0;
@@ -1003,6 +1048,7 @@ function renderInvestors() {
       <td>${escapeHtml(String(item.name || ""))}</td>
       <td>${escapeHtml(ideaTypeLabel(item))}</td>
       <td>${escapeHtml(String(item.description || ""))}</td>
+      <td>${item.contactPhone ? escapeHtml(String(item.contactPhone)) : "—"}</td>
       <td>${currency(Number(item.capital) || 0)}</td>
       <td>${currency(Number(item.expectedSales) || 0)}</td>
       <td>${Number(item.qty) || 0}</td>
@@ -1257,6 +1303,7 @@ function bindAuthEvents() {
   });
   dom.logoutBtnApp?.addEventListener("click", async () => {
     authTrace("event:click_logout", {});
+    closeSidebarDrawerIfMobile();
     // Always logout locally first so the button never appears "stuck".
     applySignedOutState("تم تسجيل الخروج.");
 
@@ -1321,6 +1368,8 @@ function init() {
   });
   dom.debtFullyPaid.dispatchEvent(new Event("change"));
 
+  bindSidebarDrawerUi();
+
   dom.showSalesSectionBtn?.addEventListener("click", () => setActiveSection("sales"));
   dom.showIdeasSectionBtn?.addEventListener("click", () => setActiveSection("ideas"));
   setMainView("sales");
@@ -1328,34 +1377,42 @@ function init() {
   dom.navSales?.addEventListener("click", () => {
     setMainView("sales");
     scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
   });
   dom.navProjectHome?.addEventListener("click", () => {
     setMainView("sales");
     scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
   });
   dom.navIdeasForm?.addEventListener("click", () => {
     setMainView("ideas");
     scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
   });
   dom.navInvestors?.addEventListener("click", () => {
     setMainView("investors");
     scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
   });
   dom.navDailyLog?.addEventListener("click", () => {
     setMainView("daily");
     scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
   });
   dom.navSummary?.addEventListener("click", () => {
     setMainView("summary");
     scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
   });
   dom.navReports?.addEventListener("click", () => {
     setMainView("summary");
     scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
   });
   dom.navSettings?.addEventListener("click", () => {
     setMainView("settings");
     scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
   });
 
   dom.fields.unpaidAmount.addEventListener("input", () => {
@@ -1471,10 +1528,19 @@ function init() {
     const idea = computeIdea(base);
     const shouldSendToInvestors = !!dom.sendToInvestors?.checked || base.capital <= 0;
     if (shouldSendToInvestors) {
+      const phoneRaw = String(dom.ideaInvestorPhone?.value || "").trim();
+      if (!isValidInvestorPhone(phoneRaw)) {
+        alert(
+          "أدخل رقم هاتف صالح للتواصل قبل الإرسال إلى خانة المستثمرين (8 إلى 15 رقمًا، يمكن أن يبدأ رمز الدولة)."
+        );
+        dom.ideaInvestorPhone?.focus();
+        return;
+      }
       state.investors.unshift({
         ...idea,
         // Never expose sensitive implementation notes in investors inbox.
         privateNotes: "",
+        contactPhone: phoneRaw,
         createdAt: new Date().toISOString().slice(0, 10)
       });
       saveInvestors();
