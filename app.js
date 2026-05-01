@@ -73,9 +73,11 @@ const dom = {
   navReports: document.getElementById("navReports"),
   navSettings: document.getElementById("navSettings"),
   workspaceTop: document.getElementById("workspaceTop"),
+  tablesGrid: document.getElementById("tablesGrid"),
   dailyLogSection: document.getElementById("dailyLogSection"),
   ideasLogSection: document.getElementById("ideasLogSection"),
   projectSummarySection: document.getElementById("projectSummarySection"),
+  settingsPageSection: document.getElementById("settingsPageSection"),
   reportsSection: document.getElementById("reportsSection"),
   settingsSection: document.getElementById("settingsSection"),
   sidebarNetProfit: document.getElementById("sidebarNetProfit"),
@@ -388,12 +390,44 @@ function scrollToPanel(el) {
 }
 
 function setActiveSection(section) {
-  const showSales = section !== "ideas";
-  dom.salesSectionCard?.classList.toggle("hidden-section", !showSales);
-  dom.ideasSectionCard?.classList.toggle("hidden-section", showSales);
-  dom.showSalesSectionBtn?.classList.toggle("active", showSales);
-  dom.showIdeasSectionBtn?.classList.toggle("active", !showSales);
-  setSidebarNavActive(showSales ? "navProjectHome" : "navIdeasForm");
+  const view = section === "ideas" ? "ideas" : "sales";
+  const isSales = view === "sales";
+  const isIdeas = view === "ideas";
+
+  dom.salesSectionCard?.classList.toggle("hidden-section", !isSales);
+  dom.ideasSectionCard?.classList.toggle("hidden-section", !isIdeas);
+  dom.showSalesSectionBtn?.classList.toggle("active", isSales);
+  dom.showIdeasSectionBtn?.classList.toggle("active", isIdeas);
+
+  // Keep each sidebar item in its own standalone page.
+  dom.tablesGrid?.classList.toggle("hidden", !isIdeas);
+  dom.tablesGrid?.classList.toggle("single-col", isIdeas);
+  dom.ideasLogSection?.classList.toggle("hidden", !isIdeas);
+  dom.dailyLogSection?.classList.add("hidden");
+  dom.projectSummarySection?.classList.add("hidden");
+  dom.settingsPageSection?.classList.add("hidden");
+
+  setSidebarNavActive(isSales ? "navSales" : "navIdeasForm");
+}
+
+function setMainView(view) {
+  if (view === "sales" || view === "ideas") {
+    setActiveSection(view);
+    return;
+  }
+
+  dom.salesSectionCard?.classList.add("hidden-section");
+  dom.ideasSectionCard?.classList.add("hidden-section");
+  dom.tablesGrid?.classList.toggle("hidden", view !== "daily");
+  dom.tablesGrid?.classList.toggle("single-col", view === "daily");
+  dom.ideasLogSection?.classList.add("hidden");
+  dom.dailyLogSection?.classList.toggle("hidden", view !== "daily");
+  dom.projectSummarySection?.classList.toggle("hidden", view !== "summary");
+  dom.settingsPageSection?.classList.toggle("hidden", view !== "settings");
+
+  if (view === "daily") setSidebarNavActive("navDailyLog");
+  else if (view === "summary") setSidebarNavActive("navSummary");
+  else if (view === "settings") setSidebarNavActive("navSettings");
 }
 
 function applySignedOutState(message = "تم تسجيل الخروج.") {
@@ -1167,36 +1201,35 @@ function init() {
 
   dom.showSalesSectionBtn?.addEventListener("click", () => setActiveSection("sales"));
   dom.showIdeasSectionBtn?.addEventListener("click", () => setActiveSection("ideas"));
-  setActiveSection("sales");
+  setMainView("sales");
 
   dom.navSales?.addEventListener("click", () => {
-    setActiveSection("sales");
+    setMainView("sales");
     scrollToPanel(dom.workspaceTop);
   });
   dom.navProjectHome?.addEventListener("click", () => {
-    setActiveSection("sales");
+    setMainView("sales");
     scrollToPanel(dom.workspaceTop);
-    setSidebarNavActive("navProjectHome");
   });
   dom.navIdeasForm?.addEventListener("click", () => {
-    setActiveSection("ideas");
+    setMainView("ideas");
     scrollToPanel(dom.workspaceTop);
   });
   dom.navDailyLog?.addEventListener("click", () => {
-    scrollToPanel(dom.dailyLogSection);
-    setSidebarNavActive("navDailyLog");
+    setMainView("daily");
+    scrollToPanel(dom.workspaceTop);
   });
   dom.navSummary?.addEventListener("click", () => {
-    scrollToPanel(dom.projectSummarySection);
-    setSidebarNavActive("navSummary");
+    setMainView("summary");
+    scrollToPanel(dom.workspaceTop);
   });
   dom.navReports?.addEventListener("click", () => {
-    scrollToPanel(dom.projectSummarySection);
-    setSidebarNavActive("navSummary");
+    setMainView("summary");
+    scrollToPanel(dom.workspaceTop);
   });
   dom.navSettings?.addEventListener("click", () => {
-    scrollToPanel(dom.dailyLogSection);
-    setSidebarNavActive("navDailyLog");
+    setMainView("settings");
+    scrollToPanel(dom.workspaceTop);
   });
 
   dom.fields.unpaidAmount.addEventListener("input", () => {

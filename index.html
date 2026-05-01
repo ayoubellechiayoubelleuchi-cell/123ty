@@ -441,6 +441,7 @@
       gap: 16px;
       margin-bottom: 16px;
     }
+    .tables-grid.single-col { grid-template-columns: 1fr; }
 
     @media (max-width: 960px) {
       .tables-grid { grid-template-columns: 1fr; }
@@ -710,7 +711,7 @@
           </div>
         </div>
 
-        <div class="tables-grid">
+        <div class="tables-grid" id="tablesGrid">
           <div class="panel-card" id="ideasLogSection">
             <h2>سجل الأفكار</h2>
             <div class="table-wrap">
@@ -812,6 +813,11 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <div class="panel-card hidden" id="settingsPageSection">
+          <h2>الإعدادات</h2>
+          <p class="lead">هذه صفحة إعدادات مستقلة. يمكن إضافة خيارات التحكم لاحقًا.</p>
         </div>
 
       </div>
