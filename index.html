@@ -659,7 +659,7 @@
 
           <div class="panel-card hidden-section" id="ideasSectionCard">
             <h2>خانة الأفكار</h2>
-            <p class="lead">قيّم الفكرة قبل التنفيذ (منتج أو خدمة).</p>
+            <p class="lead">اكتب عرضًا عامًا للفكرة فقط، واحتفظ بالتفاصيل الحساسة في خانة خاصة غير معروضة للمستثمرين.</p>
 
             <form id="ideaForm">
               <div class="idea-type-toggle">
@@ -672,8 +672,13 @@
                   <input id="ideaName" type="text" placeholder="مثال: معطر صيفي" required />
                 </div>
                 <div class="span-2">
-                  <label for="ideaDescription">وصف بسيط</label>
-                  <textarea id="ideaDescription" placeholder="مثال: ريحة منعشة للسيارات" required></textarea>
+                  <label for="ideaDescription">عرض الفكرة (عام فقط)</label>
+                  <textarea id="ideaDescription" placeholder="مثال: تطبيق توصيل ذكي (بدون تفاصيل التنفيذ)" required></textarea>
+                  <div class="hint">لا تكتب خطوات التنفيذ أو الأسرار التقنية هنا.</div>
+                </div>
+                <div class="span-2">
+                  <label for="ideaPrivateNotes">تفاصيل حساسة (خاصة بك)</label>
+                  <textarea id="ideaPrivateNotes" placeholder="اكتب هنا الطريقة/الأسرار التنفيذية (لن تظهر في خانة المستثمرين)"></textarea>
                 </div>
                 <div>
                   <label for="ideaCapital">رأس المال المتوقع (د)</label>
@@ -711,6 +716,7 @@
 
               <div class="actions">
                 <button class="btn-primary-light" type="submit">إضافة فكرة</button>
+                <button class="btn-ghost-light" type="button" id="addIdeaToInvestorsBtn">إضافة إلى خانة المستثمرين</button>
               </div>
             </form>
           </div>
@@ -854,9 +860,6 @@
             </table>
           </div>
           <div id="investorsEmptyState" class="empty">لا توجد أفكار للمستثمرين بعد.</div>
-          <div class="actions">
-            <button class="btn-ghost-light" type="button" id="resetInvestors">مسح خانة المستثمرين</button>
-          </div>
         </div>
 
       </div>

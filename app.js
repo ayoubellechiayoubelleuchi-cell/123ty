@@ -56,6 +56,7 @@ const dom = {
   investorsEmptyState: document.getElementById("investorsEmptyState"),
   resetBtn: document.getElementById("resetData"),
   resetIdeasBtn: document.getElementById("resetIdeas"),
+  addIdeaToInvestorsBtn: document.getElementById("addIdeaToInvestorsBtn"),
   resetInvestorsBtn: document.getElementById("resetInvestors"),
   deletionLogList: document.getElementById("deletionLogList"),
   appPage: document.getElementById("appPage"),
@@ -107,6 +108,7 @@ const dom = {
   ideaFields: {
     name: document.getElementById("ideaName"),
     description: document.getElementById("ideaDescription"),
+    privateNotes: document.getElementById("ideaPrivateNotes"),
     capital: document.getElementById("ideaCapital"),
     price: document.getElementById("ideaPrice"),
     qty: document.getElementById("ideaQty")
@@ -796,6 +798,7 @@ function computeIdea(base) {
     ideaId: newRecordId(),
     name: base.name,
     description: base.description,
+    privateNotes: base.privateNotes || "",
     ideaType,
     capital,
     price,
@@ -1439,6 +1442,14 @@ function init() {
   }
   dom.ideaTypeProduct?.addEventListener("change", syncIdeaTypeUi);
   dom.ideaTypeService?.addEventListener("change", syncIdeaTypeUi);
+  dom.addIdeaToInvestorsBtn?.addEventListener("click", () => {
+    if (dom.sendToInvestors) dom.sendToInvestors.checked = true;
+    if (typeof dom.ideaForm?.requestSubmit === "function") {
+      dom.ideaForm.requestSubmit();
+      return;
+    }
+    dom.ideaForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
 
   dom.ideaForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1448,6 +1459,7 @@ function init() {
     const base = {
       name: dom.ideaFields.name.value.trim(),
       description: dom.ideaFields.description.value.trim(),
+      privateNotes: dom.ideaFields.privateNotes.value.trim(),
       ideaType,
       capital: Number(dom.ideaFields.capital.value),
       price: Number(dom.ideaFields.price.value),
@@ -1461,6 +1473,8 @@ function init() {
     if (shouldSendToInvestors) {
       state.investors.unshift({
         ...idea,
+        // Never expose sensitive implementation notes in investors inbox.
+        privateNotes: "",
         createdAt: new Date().toISOString().slice(0, 10)
       });
       saveInvestors();
