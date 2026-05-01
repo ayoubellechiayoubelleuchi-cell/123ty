@@ -47,6 +47,8 @@ const dom = {
   rowsContainer: document.getElementById("rows"),
   ideaRowsContainer: document.getElementById("ideaRows"),
   emptyState: document.getElementById("emptyState"),
+  dailySalesSummary: document.getElementById("dailySalesSummary"),
+  monthlyProfitSummary: document.getElementById("monthlyProfitSummary"),
   ideasEmptyState: document.getElementById("ideasEmptyState"),
   resetBtn: document.getElementById("resetData"),
   resetIdeasBtn: document.getElementById("resetIdeas"),
@@ -64,6 +66,7 @@ const dom = {
   salesSectionCard: document.getElementById("salesSectionCard"),
   ideasSectionCard: document.getElementById("ideasSectionCard"),
   navSales: document.getElementById("navSales"),
+  navProjectHome: document.getElementById("navProjectHome"),
   navDailyLog: document.getElementById("navDailyLog"),
   navIdeasForm: document.getElementById("navIdeasForm"),
   navSummary: document.getElementById("navSummary"),
@@ -361,7 +364,7 @@ function setAppEnabled(enabled) {
   dom.resetBtn.disabled = !enabled;
 }
 
-const SIDEBAR_NAV_IDS = ["navSales", "navDailyLog", "navIdeasForm", "navSummary", "navReports", "navSettings"];
+const SIDEBAR_NAV_IDS = ["navProjectHome", "navSales", "navDailyLog", "navIdeasForm", "navSummary", "navSettings"];
 
 function setSidebarNavActive(activeId) {
   for (const id of SIDEBAR_NAV_IDS) {
@@ -390,7 +393,7 @@ function setActiveSection(section) {
   dom.ideasSectionCard?.classList.toggle("hidden-section", showSales);
   dom.showSalesSectionBtn?.classList.toggle("active", showSales);
   dom.showIdeasSectionBtn?.classList.toggle("active", !showSales);
-  setSidebarNavActive(showSales ? "navSales" : "navIdeasForm");
+  setSidebarNavActive(showSales ? "navProjectHome" : "navIdeasForm");
 }
 
 function applySignedOutState(message = "تم تسجيل الخروج.") {
@@ -749,6 +752,8 @@ function render() {
   dom.totals.totalUnpaidEl.textContent = currency(sumRemaining);
   dom.totals.totalPaidEl.textContent = currency(sumCollected);
   dom.emptyState.style.display = state.records.length === 0 ? "block" : "none";
+  renderDailySalesSummary();
+  renderMonthlyProfitSummary();
 
   if (dom.sidebarNetProfit) dom.sidebarNetProfit.textContent = currency(totalNetProfit);
   if (dom.sidebarCapital) dom.sidebarCapital.textContent = currency(currentCapital);
@@ -761,6 +766,48 @@ function render() {
   }
 
   log("info", "render_done", { rowsRendered: state.records.length });
+}
+
+function renderDailySalesSummary() {
+  if (!dom.dailySalesSummary) return;
+  const salesByDay = new Map();
+  for (const rec of state.records) {
+    const key = String(rec.date || "").trim();
+    if (!key) continue;
+    salesByDay.set(key, (salesByDay.get(key) || 0) + (Number(rec.totalSale) || 0));
+  }
+
+  const entries = [...salesByDay.entries()].sort((a, b) => String(b[0]).localeCompare(String(a[0])));
+  if (entries.length === 0) {
+    dom.dailySalesSummary.innerHTML = `<div class="rank-item"><span>لا توجد بيانات يومية بعد</span><strong>—</strong></div>`;
+    return;
+  }
+
+  dom.dailySalesSummary.innerHTML = entries
+    .slice(0, 15)
+    .map(([day, total]) => `<div class="rank-item"><span>${escapeHtml(day)}</span><strong>${currency(total)}</strong></div>`)
+    .join("");
+}
+
+function renderMonthlyProfitSummary() {
+  if (!dom.monthlyProfitSummary) return;
+  const profitByMonth = new Map();
+  for (const rec of state.records) {
+    const d = String(rec.date || "").trim();
+    if (!d) continue;
+    const monthKey = d.length >= 7 ? d.slice(0, 7) : d;
+    profitByMonth.set(monthKey, (profitByMonth.get(monthKey) || 0) + (Number(rec.netProfit) || 0));
+  }
+
+  const entries = [...profitByMonth.entries()].sort((a, b) => String(b[0]).localeCompare(String(a[0])));
+  if (entries.length === 0) {
+    dom.monthlyProfitSummary.innerHTML = `<div class="rank-item"><span>لا توجد بيانات شهرية بعد</span><strong>—</strong></div>`;
+    return;
+  }
+
+  dom.monthlyProfitSummary.innerHTML = entries
+    .map(([month, totalProfit]) => `<div class="rank-item"><span>${escapeHtml(month)}</span><strong>${currency(totalProfit)}</strong></div>`)
+    .join("");
 }
 
 function renderIdeasPreview() {
@@ -1126,6 +1173,11 @@ function init() {
     setActiveSection("sales");
     scrollToPanel(dom.workspaceTop);
   });
+  dom.navProjectHome?.addEventListener("click", () => {
+    setActiveSection("sales");
+    scrollToPanel(dom.workspaceTop);
+    setSidebarNavActive("navProjectHome");
+  });
   dom.navIdeasForm?.addEventListener("click", () => {
     setActiveSection("ideas");
     scrollToPanel(dom.workspaceTop);
@@ -1139,12 +1191,12 @@ function init() {
     setSidebarNavActive("navSummary");
   });
   dom.navReports?.addEventListener("click", () => {
-    scrollToPanel(dom.reportsSection);
-    setSidebarNavActive("navReports");
+    scrollToPanel(dom.projectSummarySection);
+    setSidebarNavActive("navSummary");
   });
   dom.navSettings?.addEventListener("click", () => {
-    scrollToPanel(dom.settingsSection);
-    setSidebarNavActive("navSettings");
+    scrollToPanel(dom.dailyLogSection);
+    setSidebarNavActive("navDailyLog");
   });
 
   dom.fields.unpaidAmount.addEventListener("input", () => {

@@ -142,18 +142,31 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      font-size: 1.25rem;
-      font-weight: 800;
-      color: #fff;
+      width: 100%;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #e2e8f0;
       margin-bottom: 22px;
-      padding: 0 6px;
+      padding: 10px 12px;
+      border: 1px solid var(--sidebar-border);
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.7);
+      cursor: pointer;
+      text-align: right;
+    }
+    .sidebar-brand:hover { background: var(--nav-hover); color: #fff; }
+    .sidebar-brand.active {
+      background: var(--nav-active);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35);
     }
 
     .sidebar-brand span.icon {
       width: 36px;
       height: 36px;
       border-radius: 10px;
-      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      background: linear-gradient(135deg, #334155, #1e293b);
       display: grid;
       place-items: center;
       font-size: 1.1rem;
@@ -573,11 +586,6 @@
       <div class="workspace-inner" id="workspaceTop">
         <h1 class="workspace-title">لوحة التحكم</h1>
 
-        <div class="section-tabs" role="tablist">
-          <button class="section-tab active" type="button" id="showSalesSectionBtn" data-section="sales">قسم تسجيل المبيعات</button>
-          <button class="section-tab" type="button" id="showIdeasSectionBtn" data-section="ideas">قسم خانة الأفكار</button>
-        </div>
-
         <div class="form-stack">
           <div class="panel-card" id="salesSectionCard">
             <h1>تسجيل بيع جديد</h1>
@@ -692,10 +700,6 @@
                   <strong>تلميح</strong>
                   قارن هامش الربح بين الأفكار قبل اختيار أي مشروع تبدأ به.
                 </div>
-                <div class="idea-panel">
-                  <strong>كيف نحسب الربح؟</strong>
-                  إجمالي البيع المتوقع = السعر × الكمية. الربح المتوقع = ذلك الإجمالي − رأس المال.
-                </div>
               </div>
 
               <div class="actions">
@@ -755,21 +759,41 @@
               </table>
             </div>
             <div id="emptyState" class="empty">لا توجد بيانات بعد. أضف أول عملية بيع.</div>
+
+            <div class="idea-panels" style="margin-top:14px;">
+              <div class="idea-panel" style="width:100%;">
+                <strong>مبيعات كل يوم</strong>
+                <div id="dailySalesSummary" class="rank-list" style="margin-top:8px;">
+                  <div class="rank-item"><span>لا توجد بيانات يومية بعد</span><strong>—</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="idea-panels" style="margin-top:10px;">
+              <div class="idea-panel" style="width:100%;">
+                <strong>الأرباح الشهرية</strong>
+                <div id="monthlyProfitSummary" class="rank-list" style="margin-top:8px;">
+                  <div class="rank-item"><span>لا توجد بيانات شهرية بعد</span><strong>—</strong></div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
-        <div class="summary-strip" id="projectSummarySection">
-          <div class="sum-card c1"><span>إجمالي المبيعات</span><b id="totalSales">0.00 د</b></div>
-          <div class="sum-card c2"><span>إجمالي الربح</span><b id="totalProfit">0.00 د</b></div>
-          <div class="sum-card c3"><span>إعادة استثمار 10%</span><b id="totalReinvest">0.00 د</b></div>
-          <div class="sum-card c4"><span>الربح الصافي</span><b id="totalNetProfit">0.00 د</b></div>
-          <div class="sum-card c5"><span>رأس المال الحالي</span><b id="currentCapital">0.00 د</b></div>
-          <div class="sum-card c6"><span>غير المدفوع</span><b id="totalUnpaid">0.00 د</b></div>
-          <div class="sum-card c7"><span>المحصّل</span><b id="totalPaid">0.00 د</b></div>
-        </div>
+        <div class="panel-card" id="projectSummarySection">
+          <h2>ملخص المشروع</h2>
+          <div class="summary-strip">
+            <div class="sum-card c1"><span>إجمالي المبيعات</span><b id="totalSales">0.00 د</b></div>
+            <div class="sum-card c2"><span>إجمالي الربح</span><b id="totalProfit">0.00 د</b></div>
+            <div class="sum-card c3"><span>إعادة استثمار 10%</span><b id="totalReinvest">0.00 د</b></div>
+            <div class="sum-card c4"><span>الربح الصافي</span><b id="totalNetProfit">0.00 د</b></div>
+            <div class="sum-card c5"><span>رأس المال الحالي</span><b id="currentCapital">0.00 د</b></div>
+            <div class="sum-card c6"><span>غير المدفوع</span><b id="totalUnpaid">0.00 د</b></div>
+            <div class="sum-card c7"><span>المحصّل</span><b id="totalPaid">0.00 د</b></div>
+          </div>
 
-        <div class="panel-card" id="reportsSection">
-          <h2>التحليلات السريعة</h2>
+          <h2 style="margin-top: 8px;">التحليلات السريعة</h2>
           <div class="insights-grid">
             <div class="mini-card">
               <h3>نظرة سريعة</h3>
@@ -790,27 +814,16 @@
           </div>
         </div>
 
-        <div class="panel-card" id="settingsSection">
-          <h2>الإعدادات</h2>
-          <p class="lead">معلومات عامة عن عمل التطبيق على جهازك.</p>
-          <ul style="margin:0;padding-inline-start:1.2rem;color:var(--muted);font-size:14px;line-height:1.7">
-            <li>المزامنة مع Supabase تتم عند تسجيل الدخول وعند إضافة السجلات.</li>
-            <li>تُحفظ نسخة من البيانات محليًا في المتصفّح كاحتياطي.</li>
-            <li>للخروج من الحساب استخدم «تسجيل الخروج» في الشريط الجانبي.</li>
-          </ul>
-          <p class="hint" style="margin-top:12px">خيارات إضافية (مثل اللغة أو التصدير) يمكن إضافتها لاحقًا.</p>
-        </div>
       </div>
     </main>
 
     <aside class="app-sidebar" aria-label="القائمة الرئيسية">
-      <div class="sidebar-brand"><span class="icon">📊</span> مشروعي</div>
+      <button type="button" class="sidebar-brand active" id="navProjectHome"><span class="icon">⚙️</span> مشروعي</button>
       <nav class="sidebar-nav">
-        <button type="button" class="nav-item active" id="navSales" data-section="sales">المبيعات اليومية</button>
+        <button type="button" class="nav-item" id="navSales" data-section="sales">المبيعات اليومية</button>
         <button type="button" class="nav-item" id="navDailyLog">سجل الأيام</button>
         <button type="button" class="nav-item" id="navIdeasForm" data-section="ideas">خانة الأفكار</button>
         <button type="button" class="nav-item" id="navSummary">ملخص المشروع</button>
-        <button type="button" class="nav-item" id="navReports">التقارير</button>
         <button type="button" class="nav-item" id="navSettings">الإعدادات</button>
       </nav>
 
