@@ -5,6 +5,8 @@
 // =========================
 const STORAGE_KEY = "daily-sales-log-v1";
 const IDEAS_STORAGE_KEY = "project-ideas-v1";
+const INVESTORS_STORAGE_KEY = "investors-ideas-v1";
+const DELETION_LOG_KEY = "deletion-log-v1";
 const SUPABASE_PROJECT_ID = "navqvljmipzheqjmlzgt";
 const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
 const SUPABASE_ANON_KEY =
@@ -46,12 +48,16 @@ const dom = {
   ideaForm: document.getElementById("ideaForm"),
   rowsContainer: document.getElementById("rows"),
   ideaRowsContainer: document.getElementById("ideaRows"),
+  investorRowsContainer: document.getElementById("investorRows"),
   emptyState: document.getElementById("emptyState"),
   dailySalesSummary: document.getElementById("dailySalesSummary"),
   monthlyProfitSummary: document.getElementById("monthlyProfitSummary"),
   ideasEmptyState: document.getElementById("ideasEmptyState"),
+  investorsEmptyState: document.getElementById("investorsEmptyState"),
   resetBtn: document.getElementById("resetData"),
   resetIdeasBtn: document.getElementById("resetIdeas"),
+  resetInvestorsBtn: document.getElementById("resetInvestors"),
+  deletionLogList: document.getElementById("deletionLogList"),
   appPage: document.getElementById("appPage"),
   authPage: document.getElementById("authPage"),
   authForm: document.getElementById("authForm"),
@@ -69,6 +75,7 @@ const dom = {
   navProjectHome: document.getElementById("navProjectHome"),
   navDailyLog: document.getElementById("navDailyLog"),
   navIdeasForm: document.getElementById("navIdeasForm"),
+  navInvestors: document.getElementById("navInvestors"),
   navSummary: document.getElementById("navSummary"),
   navReports: document.getElementById("navReports"),
   navSettings: document.getElementById("navSettings"),
@@ -76,6 +83,7 @@ const dom = {
   tablesGrid: document.getElementById("tablesGrid"),
   dailyLogSection: document.getElementById("dailyLogSection"),
   ideasLogSection: document.getElementById("ideasLogSection"),
+  investorsSection: document.getElementById("investorsSection"),
   projectSummarySection: document.getElementById("projectSummarySection"),
   settingsPageSection: document.getElementById("settingsPageSection"),
   reportsSection: document.getElementById("reportsSection"),
@@ -110,6 +118,7 @@ const dom = {
   },
   ideaTypeProduct: document.getElementById("ideaTypeProduct"),
   ideaTypeService: document.getElementById("ideaTypeService"),
+  sendToInvestors: document.getElementById("sendToInvestors"),
   ideaTypeHint: document.getElementById("ideaTypeHint"),
   ideaPriceLabel: document.getElementById("ideaPriceLabel"),
   ideaQtyLabel: document.getElementById("ideaQtyLabel"),
@@ -136,6 +145,8 @@ const state = {
   currentUser: null,
   records: [],
   ideas: [],
+  investors: [],
+  deletionLog: [],
   authBusy: false,
   authEventsBound: false
 };
@@ -366,7 +377,7 @@ function setAppEnabled(enabled) {
   dom.resetBtn.disabled = !enabled;
 }
 
-const SIDEBAR_NAV_IDS = ["navProjectHome", "navSales", "navDailyLog", "navIdeasForm", "navSummary", "navSettings"];
+const SIDEBAR_NAV_IDS = ["navProjectHome", "navSales", "navDailyLog", "navIdeasForm", "navInvestors", "navSummary", "navSettings"];
 
 function setSidebarNavActive(activeId) {
   for (const id of SIDEBAR_NAV_IDS) {
@@ -406,6 +417,7 @@ function setActiveSection(section) {
   dom.dailyLogSection?.classList.add("hidden");
   dom.projectSummarySection?.classList.add("hidden");
   dom.settingsPageSection?.classList.add("hidden");
+  dom.investorsSection?.classList.add("hidden");
 
   setSidebarNavActive(isSales ? "navSales" : "navIdeasForm");
 }
@@ -424,18 +436,24 @@ function setMainView(view) {
   dom.dailyLogSection?.classList.toggle("hidden", view !== "daily");
   dom.projectSummarySection?.classList.toggle("hidden", view !== "summary");
   dom.settingsPageSection?.classList.toggle("hidden", view !== "settings");
+  dom.investorsSection?.classList.toggle("hidden", view !== "investors");
 
   if (view === "daily") setSidebarNavActive("navDailyLog");
   else if (view === "summary") setSidebarNavActive("navSummary");
   else if (view === "settings") setSidebarNavActive("navSettings");
+  else if (view === "investors") setSidebarNavActive("navInvestors");
 }
 
 function applySignedOutState(message = "تم تسجيل الخروج.") {
   state.currentUser = null;
   state.records = [];
   state.ideas = [];
+  state.investors = [];
+  state.deletionLog = [];
   render();
   renderIdeas();
+  renderInvestors();
+  renderDeletionLog();
   setPageMode(false);
   setAppEnabled(false);
   setAuthStatus(message, true);
@@ -455,8 +473,10 @@ async function activateAppForUser(user, statusSuffix = "") {
   try {
     const local = loadRecords();
     state.ideas = loadIdeas();
+    state.investors = loadInvestors();
+    state.deletionLog = loadDeletionLog();
     const remote = await loadRecordsFromRemote();
-    authTrace("activate_app:data_loaded", { localCount: local.length, remoteCount: remote.length, ideasCount: state.ideas.length });
+    authTrace("activate_app:data_loaded", { localCount: local.length, remoteCount: remote.length, ideasCount: state.ideas.length, investorsCount: state.investors.length });
     if (remote.length === 0 && local.length > 0) {
       await upsertManyRemote(local);
       state.records = local;
@@ -468,6 +488,8 @@ async function activateAppForUser(user, statusSuffix = "") {
     saveRecords();
     render();
     renderIdeas();
+    renderInvestors();
+    renderDeletionLog();
     renderIdeasPreview();
     authTrace("activate_app:ui_synced", { records: state.records.length });
   } catch (err) {
@@ -505,6 +527,10 @@ function userIdeasStorageKey() {
   return state.currentUser ? `${IDEAS_STORAGE_KEY}:${state.currentUser.id}` : IDEAS_STORAGE_KEY;
 }
 
+function userInvestorsStorageKey() {
+  return state.currentUser ? `${INVESTORS_STORAGE_KEY}:${state.currentUser.id}` : INVESTORS_STORAGE_KEY;
+}
+
 function backupStorageKey() {
   return `${STORAGE_KEY}:backup`;
 }
@@ -513,12 +539,24 @@ function backupIdeasStorageKey() {
   return `${IDEAS_STORAGE_KEY}:backup`;
 }
 
+function backupInvestorsStorageKey() {
+  return `${INVESTORS_STORAGE_KEY}:backup`;
+}
+
 function emergencyRecordsKey() {
   return `${STORAGE_KEY}:emergency`;
 }
 
 function emergencyIdeasKey() {
   return `${IDEAS_STORAGE_KEY}:emergency`;
+}
+
+function emergencyInvestorsKey() {
+  return `${INVESTORS_STORAGE_KEY}:emergency`;
+}
+
+function userDeletionLogKey() {
+  return state.currentUser ? `${DELETION_LOG_KEY}:${state.currentUser.id}` : DELETION_LOG_KEY;
 }
 
 function clampUnpaid(totalSale, unpaidRaw) {
@@ -612,6 +650,47 @@ function saveIdeas(options = {}) {
     localStorage.setItem(backupIdeasStorageKey(), payload);
   }
   log("info", "ideas_local_save", { key: userIdeasStorageKey(), count: state.ideas.length });
+}
+
+function loadInvestors() {
+  try {
+    let raw = localStorage.getItem(userInvestorsStorageKey());
+    if (!raw) raw = localStorage.getItem(backupInvestorsStorageKey());
+    if (!raw) raw = localStorage.getItem(INVESTORS_STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(emergencyInvestorsKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    const list = Array.isArray(parsed) ? parsed : [];
+    log("info", "investors_local_load", { key: userInvestorsStorageKey(), count: list.length });
+    return list;
+  } catch {
+    log("warn", "investors_local_load_failed", { key: userInvestorsStorageKey() });
+    return [];
+  }
+}
+
+function saveInvestors(options = {}) {
+  const { allowEmptyBackup = false } = options;
+  const payload = JSON.stringify(state.investors);
+  localStorage.setItem(userInvestorsStorageKey(), payload);
+  localStorage.setItem(emergencyInvestorsKey(), payload);
+  if (state.investors.length > 0 || allowEmptyBackup) {
+    localStorage.setItem(backupInvestorsStorageKey(), payload);
+  }
+  log("info", "investors_local_save", { key: userInvestorsStorageKey(), count: state.investors.length });
+}
+
+function loadDeletionLog() {
+  try {
+    const raw = localStorage.getItem(userDeletionLogKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDeletionLog() {
+  localStorage.setItem(userDeletionLogKey(), JSON.stringify(state.deletionLog));
 }
 
 async function loadRecordsFromRemote() {
@@ -910,6 +989,46 @@ function renderIdeas() {
   }
   dom.ideasEmptyState.style.display = state.ideas.length === 0 ? "block" : "none";
   renderInsights();
+}
+
+function renderInvestors() {
+  if (!dom.investorRowsContainer || !dom.investorsEmptyState) return;
+  dom.investorRowsContainer.innerHTML = "";
+  for (const item of state.investors) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(String(item.name || ""))}</td>
+      <td>${escapeHtml(ideaTypeLabel(item))}</td>
+      <td>${escapeHtml(String(item.description || ""))}</td>
+      <td>${currency(Number(item.capital) || 0)}</td>
+      <td>${currency(Number(item.expectedSales) || 0)}</td>
+      <td>${Number(item.qty) || 0}</td>
+      <td>${escapeHtml(String(item.createdAt || ""))}</td>
+    `;
+    dom.investorRowsContainer.appendChild(tr);
+  }
+  dom.investorsEmptyState.style.display = state.investors.length === 0 ? "block" : "none";
+}
+
+function renderDeletionLog() {
+  if (!dom.deletionLogList) return;
+  if (state.deletionLog.length === 0) {
+    dom.deletionLogList.innerHTML = `<div class="rank-item"><span>لا توجد عمليات حذف بعد</span><strong>—</strong></div>`;
+    return;
+  }
+  dom.deletionLogList.innerHTML = state.deletionLog
+    .slice(0, 30)
+    .map((item) => `<div class="rank-item"><span>${escapeHtml(String(item.message || ""))}</span><strong>${escapeHtml(String(item.at || ""))}</strong></div>`)
+    .join("");
+}
+
+function addDeletionLog(message) {
+  state.deletionLog.unshift({
+    message,
+    at: new Date().toLocaleString("ar")
+  });
+  saveDeletionLog();
+  renderDeletionLog();
 }
 
 function renderInsights() {
@@ -1215,6 +1334,10 @@ function init() {
     setMainView("ideas");
     scrollToPanel(dom.workspaceTop);
   });
+  dom.navInvestors?.addEventListener("click", () => {
+    setMainView("investors");
+    scrollToPanel(dom.workspaceTop);
+  });
   dom.navDailyLog?.addEventListener("click", () => {
     setMainView("daily");
     scrollToPanel(dom.workspaceTop);
@@ -1333,10 +1456,24 @@ function init() {
     if (!base.name || !base.description || base.capital < 0 || Number.isNaN(base.capital) || base.price < 0 || Number.isNaN(base.price) || base.qty < 0 || Number.isNaN(base.qty)) {
       return;
     }
-    state.ideas.unshift(computeIdea(base));
-    saveIdeas();
-    renderIdeas();
+    const idea = computeIdea(base);
+    const shouldSendToInvestors = !!dom.sendToInvestors?.checked || base.capital <= 0;
+    if (shouldSendToInvestors) {
+      state.investors.unshift({
+        ...idea,
+        createdAt: new Date().toISOString().slice(0, 10)
+      });
+      saveInvestors();
+      renderInvestors();
+      setSyncStatus("تم إرسال الفكرة إلى خانة المستثمرين.", true);
+    } else {
+      state.ideas.unshift(idea);
+      saveIdeas();
+      renderIdeas();
+      setSyncStatus("تمت إضافة الفكرة إلى خانة الأفكار.", true);
+    }
     dom.ideaForm.reset();
+    if (dom.sendToInvestors) dom.sendToInvestors.checked = false;
     syncIdeaTypeUi();
     renderIdeasPreview();
   });
@@ -1344,20 +1481,34 @@ function init() {
   dom.resetIdeasBtn.addEventListener("click", () => {
     if (!state.currentUser) return;
     if (!confirm("هل أنت متأكد من حذف كل الأفكار؟")) return;
+    const deletedCount = state.ideas.length;
     state.ideas = [];
     saveIdeas({ allowEmptyBackup: true });
     renderIdeas();
     renderIdeasPreview();
+    addDeletionLog(`تم حذف كل الأفكار (${deletedCount})`);
+  });
+
+  dom.resetInvestorsBtn?.addEventListener("click", () => {
+    if (!state.currentUser) return;
+    if (!confirm("هل أنت متأكد من حذف كل أفكار المستثمرين؟")) return;
+    const deletedCount = state.investors.length;
+    state.investors = [];
+    saveInvestors({ allowEmptyBackup: true });
+    renderInvestors();
+    addDeletionLog(`تم حذف خانة المستثمرين (${deletedCount})`);
   });
 
   dom.resetBtn.addEventListener("click", async () => {
     if (!state.currentUser) return;
     if (!confirm("هل أنت متأكد من حذف كل السجلات؟")) return;
     log("warn", "reset_all_local", { previousCount: state.records.length });
+    const deletedCount = state.records.length;
     state.records = [];
     saveRecords({ allowEmptyBackup: true });
     await deleteAllRemote();
     render();
+    addDeletionLog(`تم حذف كل المبيعات (${deletedCount})`);
   });
 
   refreshAuthButtons();
@@ -1365,6 +1516,8 @@ function init() {
   refreshSessionState();
   syncIdeaTypeUi();
   renderIdeasPreview();
+  renderInvestors();
+  renderDeletionLog();
   log("info", "init_done", {});
 }
 
