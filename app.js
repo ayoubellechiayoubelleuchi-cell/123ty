@@ -791,6 +791,21 @@ function collectedFromCustomer(record) {
   return (Number(record.totalSale) || 0) - remainingUnpaid(record);
 }
 
+/** أصل الآجل المسجَّل (لا يُصفَر عند الإسداد بتاريخ ليعرض في البطاقة) */
+function displayOriginalReceivable(record) {
+  const t = Number(record.totalSale) || 0;
+  const snap = Number(record.originalDebtAtSale);
+  if (Number.isFinite(snap) && snap > 0) return clampUnpaid(t, snap);
+  const u = originalUnpaid(record);
+  if (u > 0) return u;
+  return 0;
+}
+
+function displayRemainingReceivable(record) {
+  if (record.debtCleared) return 0;
+  return originalUnpaid(record);
+}
+
 function normalizeRecordsStep1(list) {
   return list.map((r) => {
     if (typeof r.description === "string" && r.totalSale != null) return r;
@@ -802,12 +817,26 @@ function normalizeRecordsStep1(list) {
 }
 
 function normalizeRecordsStep2(list) {
-  return list.map((r) => ({
-    ...r,
-    unpaidAmount: clampUnpaid(r.totalSale, r.unpaidAmount ?? r.unpaid),
-    debtCleared: !!r.debtCleared,
-    debtClearedAt: r.debtClearedAt || null
-  }));
+  return list.map((r) => {
+    const out = {
+      ...r,
+      unpaidAmount: clampUnpaid(r.totalSale, r.unpaidAmount ?? r.unpaid),
+      debtCleared: !!r.debtCleared,
+      debtClearedAt: r.debtClearedAt || null
+    };
+    hydrateOriginalDebtSnap(out);
+    return out;
+  });
+}
+
+function hydrateOriginalDebtSnap(r) {
+  const t = Number(r.totalSale) || 0;
+  let snap = Number(r.originalDebtAtSale);
+  if (!Number.isFinite(snap)) snap = 0;
+  snap = clampUnpaid(t, snap);
+  const u = clampUnpaid(t, r.unpaidAmount ?? r.unpaid ?? 0);
+  if (snap <= 0 && u > 0) r.originalDebtAtSale = u;
+  else r.originalDebtAtSale = snap;
 }
 
 function hasStableRecordId(r) {
@@ -1203,6 +1232,24 @@ function computeRecord(base, existingRecordId) {
   const repaid = String(base.debtRepaidDate || "").trim();
   const unpaidSource = repaid ? 0 : base.unpaidAmount;
   const unpaidAmount = clampUnpaid(totalSale, unpaidSource);
+  const rawForm = Number(base.unpaidRawFromForm);
+  const enteredFromForm = clampUnpaid(totalSale, Number.isFinite(rawForm) ? rawForm : unpaidAmount);
+
+  let prev = null;
+  if (existingRecordId != null && String(existingRecordId).trim() !== "") {
+    prev = state.records.find((r) => String(r.recordId) === String(existingRecordId).trim());
+  }
+  const prevSnap = prev != null ? clampUnpaid(totalSale, Number(prev.originalDebtAtSale) || 0) : 0;
+  const prevOpenUnpaid = prev != null ? clampUnpaid(totalSale, prev.unpaidAmount ?? prev.unpaid ?? 0) : 0;
+
+  let originalDebtAtSale = 0;
+  if (repaid.length > 0) {
+    originalDebtAtSale = Math.max(prevSnap, prevOpenUnpaid, enteredFromForm, unpaidAmount);
+  } else {
+    originalDebtAtSale = Math.max(prevSnap, unpaidAmount, enteredFromForm);
+  }
+  originalDebtAtSale = clampUnpaid(totalSale, originalDebtAtSale);
+
   const profit = totalSale - base.cost;
   const reinvest = profit * 0.1;
   const netProfit = profit - reinvest;
@@ -1215,6 +1262,7 @@ function computeRecord(base, existingRecordId) {
     description: base.description,
     totalSale,
     unpaidAmount,
+    originalDebtAtSale,
     debtCleared: repaid.length > 0,
     debtClearedAt: repaid.length > 0 ? repaid : null,
     cost: base.cost,
@@ -1298,12 +1346,12 @@ function buildExpenseEntry(raw) {
 }
 
 function renderDebtCell(record) {
-  const u = originalUnpaid(record);
-  if (u <= 0) return "—";
   if (record.debtCleared) {
     const when = record.debtClearedAt ? escapeHtml(String(record.debtClearedAt)) : "";
     return `<span class="tag-ok">تم دفع الدين</span>${when ? `<br><span style="font-size:12px;color:var(--muted)">${when}</span>` : ""}`;
   }
+  const u = originalUnpaid(record);
+  if (u <= 0) return `<span style="font-size:12px;color:var(--muted)">لا يوجد آجل مسجّل</span>`;
   return `<button type="button" class="btn-ghost-light btn-small" data-debt-paid="${escapeHtml(String(record.recordId || ""))}">تسجيل دفع الدين</button>`;
 }
 
@@ -1338,8 +1386,8 @@ function render() {
     totalReinvest += record.reinvest;
     totalNetProfit += record.netProfit;
     currentCapital += record.newCapital;
-    const orig = originalUnpaid(record);
-    const rem = remainingUnpaid(record);
+    const orig = displayOriginalReceivable(record);
+    const rem = displayRemainingReceivable(record);
     const col = collectedFromCustomer(record);
     sumRemaining += rem;
     sumCollected += col;
@@ -1356,7 +1404,10 @@ function render() {
       <div class="daily-sale-card__grid">
         ${dailyKvMoney("إجمالي البيع", currency(record.totalSale))}
         ${dailyKvMoney("آجل (أصل)", orig > 0 ? currency(orig) : "—")}
-        ${dailyKvMoney("متبقي الآجل", orig > 0 ? currency(rem) : "—")}
+        ${dailyKvMoney(
+          "متبقي الآجل",
+          rem > 0 ? currency(rem) : orig > 0 ? `${currency(0)} — لا يتبقى` : "—"
+        )}
         ${dailyKvMoney("المدفوع", currency(col))}
         ${dailyKvMoney("التكلفة", currency(record.cost))}
         ${dailyKvMoney("الربح", currency(record.profit))}
@@ -2092,9 +2143,12 @@ function init() {
     const btn = event.target.closest("[data-debt-paid]");
     if (!btn || !state.currentUser) return;
     const rec = state.records.find((r) => String(r.recordId) === btn.getAttribute("data-debt-paid"));
-    if (!rec || originalUnpaid(rec) <= 0 || rec.debtCleared) return;
+    if (!rec || rec.debtCleared || remainingUnpaid(rec) <= 0) return;
     if (!confirm("تأكيد أن الزبون سدّى كامل الآجل المسجّل لهذا السطر؟")) return;
     log("info", "debt_mark_paid", { recordId: rec.recordId });
+    const owed = clampUnpaid(rec.totalSale, rec.unpaidAmount ?? rec.unpaid ?? 0);
+    const prevSnap = Number(rec.originalDebtAtSale);
+    rec.originalDebtAtSale = clampUnpaid(rec.totalSale, Math.max(owed, Number.isFinite(prevSnap) ? prevSnap : 0));
     rec.debtCleared = true;
     rec.debtClearedAt = new Date().toISOString().slice(0, 10);
     saveRecords();
@@ -2125,6 +2179,7 @@ function init() {
       description: dom.fields.description.value.trim(),
       totalSale: Number(dom.fields.totalSale.value),
       unpaidAmount: unpaidEffective,
+      unpaidRawFromForm: unpaidRaw,
       debtRepaidDate: repaid || "",
       cost: Number(dom.fields.cost.value)
     };
