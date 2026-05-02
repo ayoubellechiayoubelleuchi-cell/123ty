@@ -1,0 +1,13 @@
+# بيئة محلية
+.env
+.env.local
+.env.*.local
+node_modules/
+
+# Vercel محلي
+.vercel/
+
+# نظام
+.DS_Store
+Thumbs.db
+*.log
