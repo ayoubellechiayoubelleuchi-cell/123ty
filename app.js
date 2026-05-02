@@ -103,6 +103,7 @@ const dom = {
   sidebarProfitTrend: document.getElementById("sidebarProfitTrend"),
   authStatus: document.getElementById("authStatus"),
   syncStatus: document.getElementById("syncStatus"),
+  dashboardHeroProfit: document.getElementById("dashboardHeroProfit"),
   debtRepaidDate: document.getElementById("debtRepaidDate"),
   ideaAdvice: document.getElementById("ideaAdvice"),
   fields: {
@@ -439,6 +440,23 @@ function closeSidebarDrawerIfMobile() {
   if (isMobileSidebarLayout()) setSidebarDrawerOpen(false);
 }
 
+function updateBottomNavActive(view) {
+  const dock = document.getElementById("bottomNav");
+  if (!dock) return;
+  for (const el of dock.querySelectorAll("[data-bottom-view]")) el.classList.remove("active");
+  const fab = dock.querySelector("#bnFab");
+  fab?.classList.remove("active");
+
+  if (view === "sales") {
+    fab?.classList.add("active");
+    return;
+  }
+  if (view === "ideas") document.getElementById("bnIdeas")?.classList.add("active");
+  else if (view === "investors") document.getElementById("bnInvestors")?.classList.add("active");
+  else if (view === "daily") document.getElementById("bnDaily")?.classList.add("active");
+  else if (view === "summary") document.getElementById("bnHome")?.classList.add("active");
+}
+
 function toggleSidebarDrawer() {
   if (!dom.appPage) return;
   setSidebarDrawerOpen(!dom.appPage.classList.contains("sidebar-open"));
@@ -483,6 +501,8 @@ function setActiveSection(section) {
 function setMainView(view) {
   if (view === "sales" || view === "ideas") {
     setActiveSection(view);
+    updateBottomNavActive(view);
+    closeSidebarDrawerIfMobile();
     return;
   }
 
@@ -502,6 +522,8 @@ function setMainView(view) {
   else if (view === "settings") setSidebarNavActive("navSettings");
   else if (view === "investors") setSidebarNavActive("navInvestors");
   else if (view === "wasiyyat") setSidebarNavActive("navWasiyyat");
+
+  updateBottomNavActive(view);
 }
 
 function applySignedOutState(message = "تم تسجيل الخروج.") {
@@ -1022,6 +1044,8 @@ function render() {
   if (dom.sidebarNetProfit) dom.sidebarNetProfit.textContent = currency(totalNetProfit);
   if (dom.sidebarCapital) dom.sidebarCapital.textContent = currency(currentCapital);
   if (dom.sidebarReceivables) dom.sidebarReceivables.textContent = currency(sumRemaining);
+  if (dom.dashboardHeroProfit && dom.totals.totalProfitEl)
+    dom.dashboardHeroProfit.textContent = dom.totals.totalProfitEl.textContent;
   if (dom.sidebarProfitTrend) {
     if (state.records.length === 0) dom.sidebarProfitTrend.textContent = "—";
     else if (totalProfit > 0) dom.sidebarProfitTrend.textContent = "+ نشاط";
@@ -1501,7 +1525,36 @@ function init() {
 
   dom.showSalesSectionBtn?.addEventListener("click", () => setActiveSection("sales"));
   dom.showIdeasSectionBtn?.addEventListener("click", () => setActiveSection("ideas"));
-  setMainView("sales");
+
+  document.getElementById("dashboardQuickActions")?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-quick]");
+    if (!btn) return;
+    const q = btn.getAttribute("data-quick");
+    if (q === "sales") setMainView("sales");
+    else if (q === "daily") setMainView("daily");
+    else if (q === "ideas") setMainView("ideas");
+    else if (q === "investors") setMainView("investors");
+    scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  });
+
+  document.getElementById("bottomNav")?.addEventListener("click", (event) => {
+    const v = event.target.closest("[data-bottom-view]")?.getAttribute("data-bottom-view");
+    if (v === "summary") setMainView("summary");
+    else if (v === "daily") setMainView("daily");
+    else if (v === "ideas") setMainView("ideas");
+    else if (v === "investors") setMainView("investors");
+    else return;
+    scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  });
+  document.getElementById("bnFab")?.addEventListener("click", () => {
+    setMainView("sales");
+    scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  });
+
+  setMainView("summary");
 
   dom.navSales?.addEventListener("click", () => {
     setMainView("sales");
@@ -1509,7 +1562,7 @@ function init() {
     closeSidebarDrawerIfMobile();
   });
   dom.navProjectHome?.addEventListener("click", () => {
-    setMainView("sales");
+    setMainView("summary");
     scrollToPanel(dom.workspaceTop);
     closeSidebarDrawerIfMobile();
   });
