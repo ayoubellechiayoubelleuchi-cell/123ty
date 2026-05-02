@@ -645,7 +645,8 @@ async function activateAppForUser(user, statusSuffix = "") {
     if (state.db && !isSalesClearPending() && state.records.length > 0) {
       await upsertManyRemote(state.records);
     }
-    saveRecords();
+    if (isSalesClearPending()) saveRecords({ allowEmptyBackup: true, allowEmptyPersist: true });
+    else saveRecords();
     if (!isSalesClearPending() && localLoad.sources >= 2 && state.records.length > 0) {
       setSyncStatus(
         `تم ضم ${localLoad.sources} نسَخًا محليًا؛ عندك الآن ${state.records.length} عملية في سجل البيع — راجع الأرقام ثم أكمل استخدامًا عاديًا.`,
@@ -662,6 +663,17 @@ async function activateAppForUser(user, statusSuffix = "") {
     authTrace("activate_app:ui_synced", { records: state.records.length });
   } catch (err) {
     authTrace("activate_app:sync_error", { message: err?.message || "unknown" });
+    if (state.currentUser && state.records.length === 0) {
+      try {
+        const salvage = loadSalesFromAllLocalSnapshots();
+        if (salvage.list.length > 0) {
+          state.records = salvage.list;
+          ensureAllSalesRecordsHaveIds();
+          saveRecords();
+          setSyncStatus("تعذّرت المزامنة أثناء التفعيل؛ أُعيد تحميل المبيعات من التخزين المحلي.", true);
+        }
+      } catch (_) {}
+    }
     // Keep user inside app even if sync fails.
     render();
     renderIdeas();
@@ -669,7 +681,9 @@ async function activateAppForUser(user, statusSuffix = "") {
     renderInvestors();
     renderWasiyyat();
     renderIdeasPreview();
-    setSyncStatus(`تعذر مزامنة بعض البيانات: ${err?.message || "خطأ غير معروف"}`, false);
+    if (state.records.length === 0) {
+      setSyncStatus(`تعذر مزامنة بعض البيانات: ${err?.message || "خطأ غير معروف"}`, false);
+    }
   }
 }
 
@@ -968,8 +982,18 @@ function loadRecords() {
 }
 
 function saveRecords(options = {}) {
-  const { allowEmptyBackup = false } = options;
+  const { allowEmptyBackup = false, allowEmptyPersist = false } = options;
   const payload = JSON.stringify(state.records);
+  const isEmpty = state.records.length === 0;
+  /**
+   * لا تُستبدل نسخة المستخدم بـ [] إلا عند مسح متعمّد (إعدادات) أو حذف آخر سجل.
+   * يمنع سيناريوهات يصبح فيها الذاكرة فارغة لخطأ مزامنة/تسلسل فيُحذف التخزين الجيد.
+   */
+  if (isEmpty && !allowEmptyBackup && !allowEmptyPersist) {
+    log("warn", "save_records_skip_empty_unauthorized", {});
+    return;
+  }
+
   localStorage.setItem(userStorageKey(), payload);
   const recoverK = userRecoverSalesKey();
 
@@ -2117,7 +2141,7 @@ function init() {
       if (!confirm("حذف هذه العملية من سجل الأيام؟ سُحذف من الجهاز ومن السحابة إن وُجدت مزامنة.")) return;
       const removed = state.records[idx];
       state.records.splice(idx, 1);
-      saveRecords();
+      saveRecords(state.records.length === 0 ? { allowEmptyPersist: true } : {});
       if (state.editingSaleRecordId && String(state.editingSaleRecordId) === id) {
         clearSaleEditMode();
         dom.form.reset();
@@ -2410,7 +2434,7 @@ function init() {
     const deletedCount = state.records.length;
     const uid = state.currentUser.id;
     state.records = [];
-    saveRecords({ allowEmptyBackup: true });
+    saveRecords({ allowEmptyBackup: true, allowEmptyPersist: true });
     render();
     addDeletionLog(`تم حذف كل المبيعات (${deletedCount})`);
 
