@@ -631,10 +631,18 @@ async function activateAppForUser(user, statusSuffix = "") {
       state.records = local;
       authTrace("activate_app:using_local_and_uploaded", { count: local.length });
     } else {
-      state.records = remote;
-      authTrace("activate_app:using_remote", { count: remote.length });
+      /* السحابة وحدها لا تُستبدل بالمحلي: ندمج حتى لا تُفقد صفوف كانت محلية فقط */
+      state.records = mergeSalesListsLocalRemote(remote, local);
+      authTrace("activate_app:merged_remote_local", {
+        remote: remote.length,
+        local: local.length,
+        merged: state.records.length
+      });
     }
     ensureAllSalesRecordsHaveIds();
+    if (state.db && !isSalesClearPending() && state.records.length > 0) {
+      await upsertManyRemote(state.records);
+    }
     saveRecords();
     render();
     renderIdeas();
@@ -794,16 +802,82 @@ function normalizeRecordsStep2(list) {
   }));
 }
 
+function hasStableRecordId(r) {
+  return r && r.recordId != null && String(r.recordId).trim() !== "";
+}
+
+/** بصمة تقليلية لتفادي تكرار نفس العملية عند دمج قوائم بلا recordId */
+function businessFingerprint(record) {
+  const d = String(record.date ?? "").trim();
+  const p = String(record.product ?? "").trim();
+  const t = (Number(record.totalSale) || 0).toFixed(4);
+  const c = (Number(record.cost) || 0).toFixed(4);
+  const u = (Number(clampUnpaid(record.totalSale, record.unpaidAmount ?? record.unpaid ?? 0)) || 0).toFixed(4);
+  const debt = record.debtCleared ? `1|${String(record.debtClearedAt ?? "")}` : "0|";
+  const desc = String(record.description ?? "").trim().slice(0, 80);
+  return `${d}|${p}|${t}|${c}|${u}|${debt}|${desc}`;
+}
+
+function mergeKeyForRecord(record) {
+  return hasStableRecordId(record) ? `id:${String(record.recordId).trim()}` : `fp:${businessFingerprint(record)}`;
+}
+
+/**
+ * دمج سحابة + محلي بدون إسقاط صفوف: كل صف من «السحابة» يبقى، ويُضاف ما هو محلي فقط،
+ * وعند تطابق المفتاح تُدمج الحقول (الطرف الثاني يغطّي الحقول المشتركة).
+ */
+function mergeSalesListsLocalRemote(remotes, locals) {
+  if (!locals || locals.length === 0) return (remotes || []).slice();
+  if (!remotes || remotes.length === 0) return locals.slice();
+  const map = new Map();
+  for (const r of remotes) map.set(mergeKeyForRecord(r), { ...r });
+  for (const r of locals) {
+    const k = mergeKeyForRecord(r);
+    const prev = map.get(k);
+    if (!prev) {
+      map.set(k, { ...r });
+      continue;
+    }
+    const rid =
+      hasStableRecordId(r) ? r.recordId : hasStableRecordId(prev) ? prev.recordId : prev.recordId || r.recordId;
+    map.set(k, { ...prev, ...r, recordId: rid });
+  }
+  return [...map.values()];
+}
+
+function userRecoverSalesKey() {
+  return state.currentUser ? `${userStorageKey()}:recover-snapshot` : "";
+}
+
 function loadRecords() {
   try {
-    let raw = localStorage.getItem(userStorageKey());
-    if (!raw) raw = localStorage.getItem(backupStorageKey());
-    if (!raw) raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) raw = localStorage.getItem(emergencyRecordsKey());
-    const parsed = raw ? JSON.parse(raw) : [];
-    const list = normalizeRecordsStep2(normalizeRecordsStep1(Array.isArray(parsed) ? parsed : []));
-    log("info", "local_load", { key: userStorageKey(), count: list.length });
-    return list;
+    const keyOrderUnique = [...new Set([userRecoverSalesKey(), userStorageKey(), backupStorageKey(), STORAGE_KEY, emergencyRecordsKey()].filter(Boolean))];
+
+    const chunks = [];
+    for (const storageKey of keyOrderUnique) {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) continue;
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      const list = normalizeRecordsStep2(normalizeRecordsStep1(Array.isArray(parsed) ? parsed : []));
+      if (list.length > 0) chunks.push(list);
+    }
+
+    if (chunks.length === 0) {
+      log("info", "local_load", { key: userStorageKey(), count: 0 });
+      return [];
+    }
+
+    chunks.sort((a, b) => b.length - a.length);
+    let acc = [];
+    for (const chunk of chunks) acc = mergeSalesListsLocalRemote(acc, chunk);
+
+    log("info", "local_load_merged", { sources: chunks.length, count: acc.length });
+    return acc;
   } catch {
     log("warn", "local_load_failed", { key: userStorageKey() });
     return [];
@@ -818,6 +892,8 @@ function saveRecords(options = {}) {
   if (state.records.length > 0 || allowEmptyBackup) {
     localStorage.setItem(backupStorageKey(), payload);
   }
+  const recoverK = userRecoverSalesKey();
+  if (recoverK && state.records.length > 0) localStorage.setItem(recoverK, payload);
   log("info", "local_save", { key: userStorageKey(), count: state.records.length });
 }
 
