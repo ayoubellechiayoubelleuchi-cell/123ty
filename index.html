@@ -745,12 +745,12 @@
                   <div class="debt-linked-connector" aria-hidden="true"></div>
                   <div class="debt-linked-inner">
                     <span class="debt-linked-title" id="debtStatusTitle">حالة الدين</span>
-                    <div class="debt-toggle-row">
-                      <input type="checkbox" id="debtFullyPaid" checked />
-                      <label for="debtFullyPaid">البيع نقدًا كاملًا — تم دفع الدين (لا يوجد آجل)</label>
-                    </div>
-                    <div class="hint" style="margin-top: 8px">
-                      عند التفعيل يُعتبر الآجل 0. إن كتبت آجلًا &gt; 0 يُلغى «البيع النقدي» تلقائيًا.
+                    <div class="one-field" style="margin-top: 6px">
+                      <label for="debtRepaidDate">تاريخ إسداد الدين</label>
+                      <input id="debtRepaidDate" type="date" />
+                      <div class="hint">
+                        التحصيل كامل: اختر تاريخ الإسداد فيُعتبر الآجل 0. بقي دين: اترك التاريخ فارغًا واكتب المبلغ أعلاه؛ إن أدخلت آجلًا &gt; 0 يُمسح التاريخ تلقائيًا.
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -974,7 +974,7 @@
                 <input id="wasiyyatPrice" type="number" min="0" step="0.01" placeholder="0" required />
               </div>
               <div>
-                <label for="wasiyyatSaleDate">تاريخ البيع</label>
+                <label for="wasiyyatSaleDate">تاريخ الاستلام</label>
                 <input id="wasiyyatSaleDate" type="date" required />
               </div>
               <div>
@@ -1002,7 +1002,7 @@
                 <tr>
                   <th>رأس المال</th>
                   <th>ثمن المنتج</th>
-                  <th>تاريخ البيع</th>
+                  <th>تاريخ الاستلام</th>
                   <th>تاريخ إتمام البيع</th>
                   <th>اسم الشخص</th>
                   <th>الهاتف</th>

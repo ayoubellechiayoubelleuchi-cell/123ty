@@ -103,7 +103,7 @@ const dom = {
   sidebarProfitTrend: document.getElementById("sidebarProfitTrend"),
   authStatus: document.getElementById("authStatus"),
   syncStatus: document.getElementById("syncStatus"),
-  debtFullyPaid: document.getElementById("debtFullyPaid"),
+  debtRepaidDate: document.getElementById("debtRepaidDate"),
   ideaAdvice: document.getElementById("ideaAdvice"),
   fields: {
     date: document.getElementById("date"),
@@ -902,7 +902,9 @@ async function deleteAllRemote() {
 
 function computeRecord(base) {
   const totalSale = Number(base.totalSale);
-  const unpaidAmount = clampUnpaid(totalSale, base.unpaidAmount);
+  const repaid = String(base.debtRepaidDate || "").trim();
+  const unpaidSource = repaid ? 0 : base.unpaidAmount;
+  const unpaidAmount = clampUnpaid(totalSale, unpaidSource);
   const profit = totalSale - base.cost;
   const reinvest = profit * 0.1;
   const netProfit = profit - reinvest;
@@ -913,8 +915,8 @@ function computeRecord(base) {
     description: base.description,
     totalSale,
     unpaidAmount,
-    debtCleared: false,
-    debtClearedAt: null,
+    debtCleared: repaid.length > 0,
+    debtClearedAt: repaid.length > 0 ? repaid : null,
     cost: base.cost,
     recordId: newRecordId(),
     profit,
@@ -1481,16 +1483,19 @@ function init() {
     });
   }
 
-  dom.debtFullyPaid.addEventListener("change", () => {
-    log("info", "debt_fully_paid_toggle", { checked: dom.debtFullyPaid.checked });
-    if (dom.debtFullyPaid.checked) {
+  function syncDebtRepaidUi() {
+    const hasDate = !!String(dom.debtRepaidDate?.value || "").trim();
+    if (hasDate) {
       dom.fields.unpaidAmount.value = "";
       dom.fields.unpaidAmount.disabled = true;
-    } else {
-      dom.fields.unpaidAmount.disabled = false;
-    }
+    } else dom.fields.unpaidAmount.disabled = false;
+  }
+
+  dom.debtRepaidDate?.addEventListener("change", () => {
+    log("info", "debt_repaid_date_change", { value: dom.debtRepaidDate?.value ?? "" });
+    syncDebtRepaidUi();
   });
-  dom.debtFullyPaid.dispatchEvent(new Event("change"));
+  syncDebtRepaidUi();
 
   bindSidebarDrawerUi();
 
@@ -1549,9 +1554,9 @@ function init() {
     if (str === "") return;
     const v = Number(str);
     if (!Number.isFinite(v) || v <= 0) return;
-    if (dom.debtFullyPaid.checked) {
-      dom.debtFullyPaid.checked = false;
-      dom.debtFullyPaid.dispatchEvent(new Event("change"));
+    if (String(dom.debtRepaidDate?.value || "").trim()) {
+      dom.debtRepaidDate.value = "";
+      syncDebtRepaidUi();
     }
   });
 
@@ -1571,12 +1576,14 @@ function init() {
 
   dom.form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const repaid = String(dom.debtRepaidDate?.value || "").trim();
     const unpaidStr = dom.fields.unpaidAmount.value.trim();
     const unpaidRaw = unpaidStr === "" ? 0 : Number(unpaidStr);
-    const unpaidEffective = dom.debtFullyPaid.checked ? 0 : unpaidRaw;
-    if (!dom.debtFullyPaid.checked && Number.isNaN(unpaidRaw)) {
+    const unpaidEffective = repaid ? 0 : unpaidRaw;
+    if (!repaid && Number.isNaN(unpaidRaw)) {
       return alert("أدخل رقما صحيحا في خانة «مبيعات غير مدفوعة»، أو اتركها فارغة (صفر).");
     }
+    if (repaid && unpaidRaw > 0) return alert("أزل تاريخ إسداد الدين أو احذف مبلغ الآجل — لا يجمع بينهما.");
 
     const base = {
       date: dom.fields.date.value,
@@ -1584,6 +1591,7 @@ function init() {
       description: dom.fields.description.value.trim(),
       totalSale: Number(dom.fields.totalSale.value),
       unpaidAmount: unpaidEffective,
+      debtRepaidDate: repaid || "",
       cost: Number(dom.fields.cost.value)
     };
     if (!base.date) return alert("اختر تاريخ العملية.");
@@ -1600,7 +1608,7 @@ function init() {
       totalSale: base.totalSale,
       unpaidAmount: base.unpaidAmount,
       cost: base.cost,
-      debtFullyPaid: dom.debtFullyPaid.checked
+      debtRepaidDate: repaid || null
     });
     try {
       const newRecord = computeRecord(base);
@@ -1609,8 +1617,7 @@ function init() {
       render();
       setSyncStatus("تمت إضافة العملية محليًا بنجاح.", true);
       dom.form.reset();
-      dom.debtFullyPaid.checked = true;
-      dom.debtFullyPaid.dispatchEvent(new Event("change"));
+      syncDebtRepaidUi();
 
       const remoteOk = await upsertRecordRemote(newRecord);
       if (!remoteOk) {
@@ -1650,7 +1657,7 @@ function init() {
     const phoneRaw = String(f.phone.value || "").trim();
     if (Number.isNaN(capital) || capital < 0) return alert("أدخل رأس مال صالحًا.");
     if (Number.isNaN(productPrice) || productPrice < 0) return alert("أدخل ثمن المنتج صالحًا.");
-    if (!saleDate) return alert("اختر تاريخ البيع.");
+    if (!saleDate) return alert("اختر تاريخ الاستلام.");
     if (!personName) return alert("أدخل اسم الشخص.");
     if (!isValidInvestorPhone(phoneRaw)) {
       alert("أدخل رقم هاتف صالحًا (8 إلى 15 رقمًا).");
