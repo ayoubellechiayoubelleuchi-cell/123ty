@@ -1168,6 +1168,16 @@
       align-items: center;
       justify-content: flex-end;
     }
+    .daily-sale-card__editrow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--stroke);
+    }
     #dailyLogSection .daily-log-extras {
       margin-top: 22px;
       padding-top: 18px;
@@ -1488,7 +1498,8 @@
               </div>
 
               <div class="actions">
-                <button class="btn-primary-light" type="submit">إضافة سجل اليوم</button>
+                <button class="btn-primary-light" type="submit" id="saleSubmitBtn">إضافة سجل اليوم</button>
+                <button class="btn-ghost-light hidden" type="button" id="cancelSaleEditBtn">إلغاء التعديل</button>
               </div>
             </form>
           </div>
@@ -1604,7 +1615,7 @@
 
           <div class="panel-card" id="dailyLogSection">
             <h2>سجل الأيام</h2>
-            <p class="lead daily-log-lead">كل عملية في بطاقة منفصلة؛ مرّر للأسفل لقراءة التفاصيل.</p>
+            <p class="lead daily-log-lead">كل عملية في بطاقة منفصلة؛ استخدم «تعديل» أو «حذف» أسفل البطاقة عند الحاجة.</p>
             <div class="daily-cards" id="rows" aria-live="polite"></div>
             <div id="emptyState" class="empty">لا توجد بيانات بعد. أضف أول عملية بيع.</div>
 
@@ -1848,6 +1859,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260202h"></script>
+  <script defer src="./app.js?v=20260502a"></script>
 </body>
 </html>

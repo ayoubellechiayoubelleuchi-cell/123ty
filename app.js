@@ -180,6 +180,8 @@ const state = {
   wasiyyat: [],
   expenses: [],
   deletionLog: [],
+  /** عند التعديل: معرّف السجل المفتوح في النموذج */
+  editingSaleRecordId: null,
   authBusy: false,
   authEventsBound: false
 };
@@ -410,6 +412,7 @@ function setAppEnabled(enabled) {
     for (const el of dom.wasiyyatForm.querySelectorAll("input, textarea, button")) el.disabled = !enabled;
   }
   for (const btn of dom.rowsContainer.querySelectorAll("button[data-debt-paid]")) btn.disabled = !enabled;
+  for (const btn of dom.rowsContainer.querySelectorAll("button[data-sale-edit], button[data-sale-delete]")) btn.disabled = !enabled;
   for (const btn of dom.wasiyyatRowsContainer?.querySelectorAll("button[data-wasiyyat-delete]") ?? []) btn.disabled = !enabled;
   dom.resetBtn.disabled = !enabled;
 }
@@ -573,6 +576,8 @@ function applySignedOutState(message = "تم تسجيل الخروج.") {
   state.wasiyyat = [];
   state.expenses = [];
   state.deletionLog = [];
+  state.editingSaleRecordId = null;
+  clearSaleEditMode();
   render();
   renderIdeas();
   renderExpenses();
@@ -629,6 +634,7 @@ async function activateAppForUser(user, statusSuffix = "") {
       state.records = remote;
       authTrace("activate_app:using_remote", { count: remote.length });
     }
+    ensureAllSalesRecordsHaveIds();
     saveRecords();
     render();
     renderIdeas();
@@ -1019,7 +1025,36 @@ async function deleteAllRemote() {
   return true;
 }
 
-function computeRecord(base) {
+async function deleteRecordRemote(recordId) {
+  if (!state.db || !state.currentUser || !recordId) return true;
+  log("info", "remote_delete_one_start", { recordId, ownerId: state.currentUser.id });
+  const { error } = await state.db
+    .from(SUPABASE_TABLE)
+    .delete()
+    .eq("record_id", recordId)
+    .eq("owner_id", state.currentUser.id);
+  if (error) {
+    log("error", "remote_delete_one_error", { message: error.message, recordId });
+    return false;
+  }
+  log("info", "remote_delete_one_ok", { recordId });
+  return true;
+}
+
+/** سجلات قديمة بلا recordId: نضيف معرّفًا محليًا فقط (لا نغيّر شكل الحقول الأخرى) */
+function ensureAllSalesRecordsHaveIds() {
+  let changed = false;
+  for (const r of state.records) {
+    if (!r.recordId || String(r.recordId).trim() === "") {
+      r.recordId = newRecordId();
+      changed = true;
+    }
+  }
+  if (changed) saveRecords();
+  return changed;
+}
+
+function computeRecord(base, existingRecordId) {
   const totalSale = Number(base.totalSale);
   const repaid = String(base.debtRepaidDate || "").trim();
   const unpaidSource = repaid ? 0 : base.unpaidAmount;
@@ -1028,6 +1063,8 @@ function computeRecord(base) {
   const reinvest = profit * 0.1;
   const netProfit = profit - reinvest;
   const newCapital = base.cost + reinvest;
+  const recordId =
+    existingRecordId != null && String(existingRecordId).trim() !== "" ? String(existingRecordId).trim() : newRecordId();
   return {
     date: base.date,
     product: base.product,
@@ -1037,12 +1074,42 @@ function computeRecord(base) {
     debtCleared: repaid.length > 0,
     debtClearedAt: repaid.length > 0 ? repaid : null,
     cost: base.cost,
-    recordId: newRecordId(),
+    recordId,
     profit,
     reinvest,
     netProfit,
     newCapital
   };
+}
+
+function clearSaleEditMode() {
+  state.editingSaleRecordId = null;
+  const submit = document.getElementById("saleSubmitBtn");
+  const cancel = document.getElementById("cancelSaleEditBtn");
+  if (submit) {
+    submit.textContent = "إضافة سجل اليوم";
+    submit.classList.remove("btn-success-cta");
+  }
+  if (cancel) cancel.classList.add("hidden");
+}
+
+function applyRecordToSaleForm(rec) {
+  if (!rec) return;
+  dom.fields.date.value = String(rec.date || "");
+  dom.fields.product.value = String(rec.product || "");
+  dom.fields.description.value = String(rec.description || "");
+  dom.fields.totalSale.value = String(rec.totalSale ?? "");
+  dom.fields.cost.value = String(rec.cost ?? "");
+  const orig = originalUnpaid(rec);
+  if (rec.debtCleared) {
+    dom.fields.unpaidAmount.value = "";
+    const d = String(rec.debtClearedAt || "").trim();
+    dom.debtRepaidDate.value = d.length >= 10 ? d.slice(0, 10) : d;
+  } else {
+    dom.fields.unpaidAmount.value = orig > 0 ? String(orig) : "";
+    if (dom.debtRepaidDate) dom.debtRepaidDate.value = "";
+  }
+  syncDebtRepaidUi();
 }
 
 function investorPhoneDigits(raw) {
@@ -1115,8 +1182,13 @@ function render() {
   let currentCapital = 0;
   let sumRemaining = 0;
   let sumCollected = 0;
+  let saleIdsBackfilled = false;
 
   for (const record of state.records) {
+    if (!record.recordId || String(record.recordId).trim() === "") {
+      record.recordId = newRecordId();
+      saleIdsBackfilled = true;
+    }
     totalSales += record.totalSale;
     totalProfit += record.profit;
     totalReinvest += record.reinvest;
@@ -1151,9 +1223,15 @@ function render() {
       <div class="daily-sale-card__debtblock">
         <span class="daily-sale-card__k">دفع الدين</span>
         <div class="daily-sale-card__debtactions">${renderDebtCell(record)}</div>
+      </div>
+      <div class="daily-sale-card__editrow">
+        <button type="button" class="btn-ghost-light btn-small" data-sale-edit="${escapeHtml(String(record.recordId || ""))}">تعديل</button>
+        <button type="button" class="btn-ghost-light btn-small" data-sale-delete="${escapeHtml(String(record.recordId || ""))}" style="color:var(--danger)">حذف</button>
       </div>`;
     dom.rowsContainer.appendChild(article);
   }
+
+  if (saleIdsBackfilled) saveRecords();
 
   dom.totals.totalSalesEl.textContent = currency(totalSales);
   dom.totals.totalProfitEl.textContent = currency(totalProfit);
@@ -1816,6 +1894,57 @@ function init() {
   });
 
   dom.rowsContainer.addEventListener("click", async (event) => {
+    const editBtn = event.target.closest("[data-sale-edit]");
+    if (editBtn && state.currentUser) {
+      const id = editBtn.getAttribute("data-sale-edit");
+      const rec = state.records.find((r) => String(r.recordId) === id);
+      if (!rec) return;
+      state.editingSaleRecordId = id;
+      applyRecordToSaleForm(rec);
+      const submitBtn = document.getElementById("saleSubmitBtn");
+      const cancelBtn = document.getElementById("cancelSaleEditBtn");
+      if (submitBtn) {
+        submitBtn.textContent = "حفظ التعديلات";
+        submitBtn.classList.add("btn-success-cta");
+      }
+      if (cancelBtn) cancelBtn.classList.remove("hidden");
+      setMainView("sales");
+      scrollToPanel(dom.workspaceTop);
+      closeSidebarDrawerIfMobile();
+      return;
+    }
+
+    const delBtn = event.target.closest("[data-sale-delete]");
+    if (delBtn && state.currentUser) {
+      const id = delBtn.getAttribute("data-sale-delete");
+      const idx = state.records.findIndex((r) => String(r.recordId) === id);
+      if (idx < 0 || !id) return;
+      if (!confirm("حذف هذه العملية من سجل الأيام؟ سُحذف من الجهاز ومن السحابة إن وُجدت مزامنة.")) return;
+      const removed = state.records[idx];
+      state.records.splice(idx, 1);
+      saveRecords();
+      if (state.editingSaleRecordId && String(state.editingSaleRecordId) === id) {
+        clearSaleEditMode();
+        dom.form.reset();
+        syncDebtRepaidUi();
+      }
+      render();
+      if (state.db) {
+        const remoteOk = await deleteRecordRemote(id);
+        if (!remoteOk) {
+          state.records.splice(idx, 0, removed);
+          saveRecords();
+          render();
+          setSyncStatus("فشل حذف السطر على السحابة؛ أُعيد السجل محليًا.", false);
+          return;
+        }
+        setSyncStatus("تم حذف العملية من السجل والسحابة.", true);
+      } else setSyncStatus("تم حذف العملية من السجل المحلي.", true);
+      log("info", "sale_deleted", { recordId: id });
+      addDeletionLog(`حذف عملية بيع (${removed.product || id})`);
+      return;
+    }
+
     const btn = event.target.closest("[data-debt-paid]");
     if (!btn || !state.currentUser) return;
     const rec = state.records.find((r) => String(r.recordId) === btn.getAttribute("data-debt-paid"));
@@ -1827,6 +1956,12 @@ function init() {
     saveRecords();
     await upsertRecordRemote(rec);
     render();
+  });
+
+  document.getElementById("cancelSaleEditBtn")?.addEventListener("click", () => {
+    clearSaleEditMode();
+    dom.form.reset();
+    syncDebtRepaidUi();
   });
 
   dom.form.addEventListener("submit", async (event) => {
@@ -1866,22 +2001,40 @@ function init() {
       debtRepaidDate: repaid || null
     });
     try {
-      const newRecord = computeRecord(base);
-      state.records.unshift(newRecord);
+      const editingId = state.editingSaleRecordId;
+      const newRecord = computeRecord(base, editingId);
+      const wasEditing = !!editingId;
+      if (wasEditing) {
+        const idx = state.records.findIndex((r) => String(r.recordId) === String(editingId));
+        if (idx < 0) {
+          setSyncStatus("تعذر العثور على السجل المراد تعديله.", false);
+          return;
+        }
+        state.records[idx] = newRecord;
+      } else {
+        state.records.unshift(newRecord);
+      }
       saveRecords();
       render();
-      setSyncStatus("تمت إضافة العملية محليًا بنجاح.", true);
+      setSyncStatus(wasEditing ? "تم تحديث العملية محليًا." : "تمت إضافة العملية محليًا بنجاح.", true);
+      clearSaleEditMode();
       dom.form.reset();
       syncDebtRepaidUi();
 
       const remoteOk = await upsertRecordRemote(newRecord);
       if (!remoteOk) {
-        setSyncStatus("تمت إضافة العملية محليًا، لكن فشلت مزامنتها مع Supabase.", false);
+        setSyncStatus(
+          wasEditing ? "تم التعديل محليًا؛ فشلت المزامنة مع Supabase." : "تمت إضافة العملية محليًا، لكن فشلت مزامنتها مع Supabase.",
+          false
+        );
       } else {
-        setSyncStatus("تمت إضافة العملية ومزامنتها مع Supabase.", true);
+        setSyncStatus(
+          wasEditing ? "تم حفظ التعديل ومزامنته مع Supabase." : "تمت إضافة العملية ومزامنتها مع Supabase.",
+          true
+        );
       }
     } catch (err) {
-      setSyncStatus(`فشل إضافة العملية: ${err?.message || "خطأ غير معروف"}`, false);
+      setSyncStatus(`فشل حفظ العملية: ${err?.message || "خطأ غير معروف"}`, false);
     }
   });
 
