@@ -369,6 +369,69 @@
 
     .form-section--debt { border-inline-end: 4px solid #8b5cf6; background: rgba(124, 58, 237, 0.06); }
 
+    .debt-unified-intro {
+      padding: 10px 12px;
+      margin: 0 0 14px;
+      border-radius: var(--radius-sm);
+      border: 1px dashed rgba(167, 139, 250, 0.45);
+      background: rgba(0, 0, 0, 0.18);
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+    .debt-unified-intro strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+    .debt-unified-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-top: 2px;
+    }
+    .debt-step {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px 14px;
+      align-items: start;
+      padding: 14px 0;
+    }
+    .debt-step:first-child {
+      padding-top: 0;
+    }
+    .debt-step + .debt-step {
+      border-top: 1px dashed var(--stroke);
+    }
+    .debt-step-marker {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(140deg, #c4b5fd, #7c3aed);
+      color: #0f0820;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+      line-height: 1;
+      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+    }
+    .debt-step-body {
+      min-width: 0;
+      border-inline-start: 2px solid rgba(167, 139, 250, 0.45);
+      padding-inline-start: 14px;
+    }
+    .debt-step-caption {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: #ddd6fe;
+      margin: 0 0 8px;
+      letter-spacing: 0.02em;
+    }
+
+    /* خلف احتياطي إن ظهر كلاس القديم في شاشات أخرى */
     .debt-linked-field { margin-top: 12px; display: flex; gap: 10px; align-items: stretch; }
     .debt-linked-connector {
       width: 4px;
@@ -1464,24 +1527,51 @@
                 </div>
               </div>
 
-              <div class="form-section form-section--debt">
-                <h3 class="form-section-title">الآجل (مبيعات غير مدفوعة)</h3>
-                <p class="form-section-lead">ما بقي على الزبون منفصل عن «إجمالي البيع».</p>
-                <div class="one-field">
-                  <label for="unpaidAmount">مبيعات غير مدفوعة (د)</label>
-                  <input id="unpaidAmount" type="number" min="0" step="0.01" placeholder="0" />
-                  <div class="hint">المدفوع فور البيع = إجمالي البيع − هذا المبلغ.</div>
-                </div>
+              <div class="form-section form-section--debt" role="group" aria-labelledby="debtBlockTitle">
+                <h3 id="debtBlockTitle" class="form-section-title">آجل وحالة الدين — مقترنَان بالإجمالي</h3>
+                <p class="form-section-lead" style="margin-bottom: 6px">الحقلان يفسّران معًا الوضع أمام الزبون، مع قسم «إجمالي البيع» الذي سبق هذا الصندوق.</p>
+                <p class="debt-unified-intro" id="debtBlockIntro">
+                  المعادلة المشتركة: من <strong>إجمالي البيع</strong> تعرف كم <strong>دُفع فورًا</strong> وكم <strong>بقي آمِلًا (آجل)</strong>. إذا وُجد
+                  <strong>تاريخ إسداد الدين</strong> يعتبر التحصيل كاملًا والآجل صفر؛ وإن تُرك التاريخ فارغًا يعتمد على خانة الآجل أدناه.
+                </p>
 
-                <div class="debt-linked-field" role="group" aria-labelledby="debtStatusTitle">
-                  <div class="debt-linked-connector" aria-hidden="true"></div>
-                  <div class="debt-linked-inner">
-                    <span class="debt-linked-title" id="debtStatusTitle">حالة الدين</span>
-                    <div class="one-field" style="margin-top: 6px">
-                      <label for="debtRepaidDate">تاريخ إسداد الدين</label>
-                      <input id="debtRepaidDate" type="date" />
-                      <div class="hint">
-                        التحصيل كامل: اختر تاريخ الإسداد فيُعتبر الآجل 0. بقي دين: اترك التاريخ فارغًا واكتب المبلغ أعلاه؛ إن أدخلت آجلًا &gt; 0 يُمسح التاريخ تلقائيًا.
+                <div class="debt-unified-steps">
+                  <div class="debt-step">
+                    <span class="debt-step-marker" aria-hidden="true">١</span>
+                    <div class="debt-step-body">
+                      <span class="debt-step-caption" id="stepUnpaidCaption">١ — تحديد ما لم يُدفع من الفاتورة حتى الآن</span>
+                      <div class="one-field">
+                        <label for="unpaidAmount">الآجل / مبيعات غير مدفوعة (د)</label>
+                        <input
+                          id="unpaidAmount"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0"
+                          aria-labelledby="stepUnpaidCaption"
+                          aria-describedby="debtBlockIntro debtPaidInline"
+                        />
+                        <div id="debtPaidInline" class="hint">
+                          الدفع الفوري = إجمالي البيع − هذا المبلغ؛ يعمل مع حقول هذا القسم ولا يقطع علاقته بتاريخ الإسداد في الخطوة التالية.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="debt-step">
+                    <span class="debt-step-marker" aria-hidden="true">٢</span>
+                    <div class="debt-step-body">
+                      <span class="debt-step-caption" id="stepDebtCaption">٢ — تم إسداد كل الباقي؟</span>
+                      <div class="one-field">
+                        <label for="debtRepaidDate">تاريخ إسداد الدين</label>
+                        <input
+                          id="debtRepaidDate"
+                          type="date"
+                          aria-labelledby="stepDebtCaption"
+                          aria-describedby="debtBlockIntro debtHintUnified"
+                        />
+                        <div id="debtHintUnified" class="hint">
+                          تحصيل <strong>كامل</strong>: اختر تاريخًا ⇒ يعتبر الآجل 0 وتُعطَّل خانة الآجل وقتها. <strong>ما زال الآجل قائمًا</strong>: أبقِ التاريخ فارغًا واكتفِ بقيمة الآجل في الخطوة الأولى؛ إذا أدخلت آجلًا أكبر من 0 يُفرّغ هذا التاريخ تلقائيًا.
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1859,6 +1949,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260502c"></script>
+  <script defer src="./app.js?v=20260503a"></script>
 </body>
 </html>
