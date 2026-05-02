@@ -984,6 +984,131 @@
       font-size: 13px;
     }
 
+    /* سجل الأيام — بطاقات عمودية */
+    #dailyLogSection .daily-log-lead {
+      margin: -4px 0 14px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .daily-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .daily-sale-card {
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      text-align: right;
+    }
+    .daily-sale-card__head {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      padding-bottom: 12px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+    .daily-sale-card__date {
+      font-size: 12px;
+      font-weight: 600;
+      color: #c4d5fd;
+      letter-spacing: 0.02em;
+    }
+    .daily-sale-card__title {
+      margin: 0;
+      font-size: 1.12rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .daily-sale-card__desc {
+      margin: 0 0 14px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .daily-sale-card__grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .daily-sale-card__row {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: rgba(0, 0, 0, 0.2);
+      font-size: 13px;
+    }
+    .daily-sale-card__k {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .daily-sale-card__v {
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .daily-sale-card__debtblock {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--stroke);
+    }
+    .daily-sale-card__debtblock .daily-sale-card__k:first-child {
+      display: block;
+      margin-bottom: 8px;
+    }
+    .daily-sale-card__debtactions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    #dailyLogSection .daily-log-extras {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--stroke);
+    }
+    #dailyLogSection .daily-log-extra-title {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    #dailyLogSection .daily-log-ranks {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 0;
+    }
+    #dailyLogSection .daily-log-ranks .rank-item {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      padding: 14px 16px;
+    }
+    #dailyLogSection .daily-log-ranks .rank-item span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    #dailyLogSection .daily-log-ranks .rank-item strong {
+      font-size: 1.12rem;
+      font-weight: 800;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
     .wasiyyat-table-wrap {
       margin-top: 18px;
     }
@@ -1213,47 +1338,23 @@
 
           <div class="panel-card" id="dailyLogSection">
             <h2>سجل الأيام</h2>
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>التاريخ</th>
-                    <th>المنتج</th>
-                    <th>الوصف</th>
-                    <th>إجمالي البيع</th>
-                    <th>آجل (أصل)</th>
-                    <th>متبقي الآجل</th>
-                    <th>المدفوع</th>
-                    <th>دفع الدين</th>
-                    <th>التكلفة</th>
-                    <th>الربح</th>
-                    <th>10% استثمار</th>
-                    <th>صافي الربح</th>
-                    <th>رأس المال الجديد</th>
-                  </tr>
-                </thead>
-                <tbody id="rows"></tbody>
-              </table>
-            </div>
+            <p class="lead daily-log-lead">كل عملية في بطاقة منفصلة؛ مرّر للأسفل لقراءة التفاصيل.</p>
+            <div class="daily-cards" id="rows" aria-live="polite"></div>
             <div id="emptyState" class="empty">لا توجد بيانات بعد. أضف أول عملية بيع.</div>
 
-            <div class="idea-panels" style="margin-top:14px;">
-              <div class="idea-panel" style="width:100%;">
-                <strong>مبيعات كل يوم</strong>
-                <div id="dailySalesSummary" class="rank-list" style="margin-top:8px;">
-                  <div class="rank-item"><span>لا توجد بيانات يومية بعد</span><strong>—</strong></div>
-                </div>
+            <section class="daily-log-extras">
+              <h3 class="daily-log-extra-title">مبيعات كل يوم</h3>
+              <div id="dailySalesSummary" class="rank-list daily-log-ranks">
+                <div class="rank-item"><span>لا توجد بيانات يومية بعد</span><strong>—</strong></div>
               </div>
-            </div>
+            </section>
 
-            <div class="idea-panels" style="margin-top:10px;">
-              <div class="idea-panel" style="width:100%;">
-                <strong>الأرباح الشهرية</strong>
-                <div id="monthlyProfitSummary" class="rank-list" style="margin-top:8px;">
-                  <div class="rank-item"><span>لا توجد بيانات شهرية بعد</span><strong>—</strong></div>
-                </div>
+            <section class="daily-log-extras">
+              <h3 class="daily-log-extra-title">الأرباح الشهرية</h3>
+              <div id="monthlyProfitSummary" class="rank-list daily-log-ranks">
+                <div class="rank-item"><span>لا توجد بيانات شهرية بعد</span><strong>—</strong></div>
               </div>
-            </div>
+            </section>
 
           </div>
         </div>
@@ -1445,6 +1546,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260202b"></script>
+  <script defer src="./app.js?v=20260202c"></script>
 </body>
 </html>

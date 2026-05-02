@@ -988,6 +988,15 @@ function renderDebtCell(record) {
   return `<button type="button" class="btn-ghost-light btn-small" data-debt-paid="${escapeHtml(String(record.recordId || ""))}">تسجيل دفع الدين</button>`;
 }
 
+/** صف في بطاقة سجل اليوم؛ القيمة نص/HTML آمن وفق المتصل */
+function dailyKvRow(label, valueHtml) {
+  return `<div class="daily-sale-card__row"><span class="daily-sale-card__k">${escapeHtml(label)}</span><span class="daily-sale-card__v">${valueHtml}</span></div>`;
+}
+
+function dailyKvMoney(label, formatted) {
+  return dailyKvRow(label, escapeHtml(String(formatted)));
+}
+
 function render() {
   log("info", "render_start", { records: state.records.length, loggedIn: !!state.currentUser });
   dom.rowsContainer.innerHTML = "";
@@ -1011,23 +1020,31 @@ function render() {
     sumRemaining += rem;
     sumCollected += col;
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(String(record.date))}</td>
-      <td>${escapeHtml(String(record.product))}</td>
-      <td>${escapeHtml(String(record.description || ""))}</td>
-      <td>${currency(record.totalSale)}</td>
-      <td>${orig > 0 ? currency(orig) : "—"}</td>
-      <td>${orig > 0 ? currency(rem) : "—"}</td>
-      <td>${currency(col)}</td>
-      <td>${renderDebtCell(record)}</td>
-      <td>${currency(record.cost)}</td>
-      <td>${currency(record.profit)}</td>
-      <td>${currency(record.reinvest)}</td>
-      <td>${currency(record.netProfit)}</td>
-      <td>${currency(record.newCapital)}</td>
-    `;
-    dom.rowsContainer.appendChild(tr);
+    const article = document.createElement("article");
+    article.className = "daily-sale-card";
+    const desc = String(record.description || "").trim();
+    article.innerHTML = `
+      <header class="daily-sale-card__head">
+        <span class="daily-sale-card__date">${escapeHtml(String(record.date))}</span>
+        <h3 class="daily-sale-card__title">${escapeHtml(String(record.product))}</h3>
+      </header>
+      ${desc ? `<p class="daily-sale-card__desc">${escapeHtml(desc)}</p>` : ""}
+      <div class="daily-sale-card__grid">
+        ${dailyKvMoney("إجمالي البيع", currency(record.totalSale))}
+        ${dailyKvMoney("آجل (أصل)", orig > 0 ? currency(orig) : "—")}
+        ${dailyKvMoney("متبقي الآجل", orig > 0 ? currency(rem) : "—")}
+        ${dailyKvMoney("المدفوع", currency(col))}
+        ${dailyKvMoney("التكلفة", currency(record.cost))}
+        ${dailyKvMoney("الربح", currency(record.profit))}
+        ${dailyKvMoney("10% استثمار", currency(record.reinvest))}
+        ${dailyKvMoney("صافي الربح", currency(record.netProfit))}
+        ${dailyKvMoney("رأس المال الجديد", currency(record.newCapital))}
+      </div>
+      <div class="daily-sale-card__debtblock">
+        <span class="daily-sale-card__k">دفع الدين</span>
+        <div class="daily-sale-card__debtactions">${renderDebtCell(record)}</div>
+      </div>`;
+    dom.rowsContainer.appendChild(article);
   }
 
   dom.totals.totalSalesEl.textContent = currency(totalSales);
