@@ -1,0 +1,12 @@
+---
+description: نشر 123ty.vercel.app تلقائيًا عبر GitHub بعد تغيير الموقع
+alwaysApply: true
+---
+
+# نشر Vercel (123ty.vercel.app)
+
+- المشروع مربوط بـ **GitHub** (`origin` → `main`). **Vercel ينشر تلقائيًا** عند كل `git push` إلى `main`؛ لا حاجة لأمر نشر يدوي إن كان الربط مفعّلاً في لوحة Vercel.
+- بعد أي تعديل على **`app.js`** أو **`index.html`** أو أصول الواجهة:
+  1. غيّر في `index.html` معلّم النسخة `app.js?v=...` (تاريخ/حرف) عندما يتغيّر `app.js` كي لا يبقى الكاش القديم.
+  2. نفِّذ: `git add` للملفات ذات الصلة، ثم `git commit` بوصف واضح، ثم **`git push origin main`** — **بنفس جلسة العمل**؛ لا تترك التعديل بدون دفع إذا كان المطلوب نشر الموقع الحي.
+- إن فشل الربط أو توقّف النشر على Vercel، راجع المشروع في [Vercel Dashboard](https://vercel.com/dashboard) → Deployments وGit Integration.
