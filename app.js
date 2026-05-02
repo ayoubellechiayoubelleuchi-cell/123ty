@@ -78,10 +78,12 @@ const dom = {
   showIdeasSectionBtn: document.getElementById("showIdeasSectionBtn"),
   salesSectionCard: document.getElementById("salesSectionCard"),
   ideasSectionCard: document.getElementById("ideasSectionCard"),
+  expenseSectionCard: document.getElementById("expenseSectionCard"),
   navSales: document.getElementById("navSales"),
   navProjectHome: document.getElementById("navProjectHome"),
   navDailyLog: document.getElementById("navDailyLog"),
   navIdeasForm: document.getElementById("navIdeasForm"),
+  navExpenses: document.getElementById("navExpenses"),
   navInvestors: document.getElementById("navInvestors"),
   navWasiyyat: document.getElementById("navWasiyyat"),
   navSummary: document.getElementById("navSummary"),
@@ -405,7 +407,17 @@ function setAppEnabled(enabled) {
   dom.resetBtn.disabled = !enabled;
 }
 
-const SIDEBAR_NAV_IDS = ["navProjectHome", "navSales", "navDailyLog", "navIdeasForm", "navWasiyyat", "navInvestors", "navSummary", "navSettings"];
+const SIDEBAR_NAV_IDS = [
+  "navProjectHome",
+  "navSales",
+  "navDailyLog",
+  "navIdeasForm",
+  "navExpenses",
+  "navWasiyyat",
+  "navInvestors",
+  "navSummary",
+  "navSettings"
+];
 
 function setSidebarNavActive(activeId) {
   for (const id of SIDEBAR_NAV_IDS) {
@@ -483,6 +495,8 @@ function setActiveSection(section) {
   const isSales = view === "sales";
   const isIdeas = view === "ideas";
 
+  dom.expenseSectionCard?.classList.add("hidden-section");
+
   dom.salesSectionCard?.classList.toggle("hidden-section", !isSales);
   dom.ideasSectionCard?.classList.toggle("hidden-section", !isIdeas);
   dom.showSalesSectionBtn?.classList.toggle("active", isSales);
@@ -519,12 +533,14 @@ function setMainView(view) {
   dom.settingsPageSection?.classList.toggle("hidden", view !== "settings");
   dom.investorsSection?.classList.toggle("hidden", view !== "investors");
   dom.wasiyyatSection?.classList.toggle("hidden", view !== "wasiyyat");
+  dom.expenseSectionCard?.classList.toggle("hidden-section", view !== "expenses");
 
   if (view === "daily") setSidebarNavActive("navDailyLog");
   else if (view === "summary") setSidebarNavActive("navSummary");
   else if (view === "settings") setSidebarNavActive("navSettings");
   else if (view === "investors") setSidebarNavActive("navInvestors");
   else if (view === "wasiyyat") setSidebarNavActive("navWasiyyat");
+  else if (view === "expenses") setSidebarNavActive("navExpenses");
 
   updateBottomNavActive(view);
 }
@@ -1575,6 +1591,7 @@ function init() {
     if (q === "sales") setMainView("sales");
     else if (q === "daily") setMainView("daily");
     else if (q === "ideas") setMainView("ideas");
+    else if (q === "expenses") setMainView("expenses");
     else if (q === "investors") setMainView("investors");
     scrollToPanel(dom.workspaceTop);
     closeSidebarDrawerIfMobile();
@@ -1609,6 +1626,21 @@ function init() {
     closeSidebarDrawerIfMobile();
   });
   dom.navIdeasForm?.addEventListener("click", () => {
+    setMainView("ideas");
+    scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  });
+  dom.navExpenses?.addEventListener("click", () => {
+    setMainView("expenses");
+    scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  });
+  document.getElementById("openExpenseSectionBtn")?.addEventListener("click", () => {
+    setMainView("expenses");
+    scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  });
+  document.getElementById("goIdeasAfterExpenseBtn")?.addEventListener("click", () => {
     setMainView("ideas");
     scrollToPanel(dom.workspaceTop);
     closeSidebarDrawerIfMobile();
