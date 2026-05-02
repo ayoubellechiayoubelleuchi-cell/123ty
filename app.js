@@ -426,7 +426,7 @@ function scrollToPanel(el) {
 }
 
 function isMobileSidebarLayout() {
-  return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 960px)").matches;
+  return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 1024px)").matches;
 }
 
 function setSidebarDrawerOpen(open) {

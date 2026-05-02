@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#070a12" />
+  <meta name="color-scheme" content="dark" />
   <link rel="icon" href="data:,">
   <title>مشروعي — تسجيل المبيعات</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -669,7 +671,8 @@
       --dock-h: calc(112px + env(safe-area-inset-bottom, 0px));
     }
 
-    @media (max-width: 960px) {
+    /* ≤1024px: شبيه بالجوال والتابلت — أكثر أجهزة العرب تُصنَّف هنا أفقيًا أيضًا */
+    @media (max-width: 1024px) {
       .bottom-nav { display: flex; }
       .tables-grid { grid-template-columns: 1fr; }
       .app-layout { flex-direction: column; position: relative; }
@@ -895,7 +898,7 @@
       }
     }
 
-    @media (min-width: 961px) {
+    @media (min-width: 1025px) {
       .sidebar-backdrop { display: none !important; }
       .sidebar-edge-btn { display: none !important; }
     }
@@ -1315,6 +1318,9 @@
         <div class="panel-card hidden" id="settingsPageSection">
           <h2>الإعدادات</h2>
           <p class="lead">هذه صفحة إعدادات مستقلة. يمكن إضافة خيارات التحكم لاحقًا.</p>
+          <p id="deployUiHint" class="hint" style="margin-top: 10px; line-height: 1.6;">
+            <strong>واجهة 2026‑05‑02</strong> — سمة داكنة، شريط سفلي ≤1024px، وتحسينات للأفكار/الوصيات/المستثمرين. إن ظهر الشكل القديم: جرّب نافذة خاصة أو امسح بيانات الموقع من إعدادات المتصفح لهذا الرابط ثم حدِّث الصفحة.
+          </p>
           <h3 class="form-section-title" style="margin-top: 12px;">إدارة السجلات</h3>
           <div class="actions">
             <button class="btn-ghost-light" type="button" id="resetIdeas">مسح كل الأفكار</button>
@@ -1449,7 +1455,7 @@
     </nav>
   </div>
 
-  <script defer src="./supabase-js-v2.min.js"></script>
-  <script defer src="./app.js"></script>
+  <script defer src="./supabase-js-v2.min.js?v=20260202"></script>
+  <script defer src="./app.js?v=20260202"></script>
 </body>
 </html>
