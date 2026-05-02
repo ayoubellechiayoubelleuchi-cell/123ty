@@ -650,6 +650,15 @@ async function activateAppForUser(user, statusSuffix = "") {
         merged: state.records.length
       });
     }
+    /* ما زال السجلّ فارغًا رغم نسخ قد تكون بنسق أقدم — محاولة ثانية بفلتر أوسع */
+    if (!isSalesClearPending() && state.records.length === 0) {
+      const legacy = loadSalesFromAllLocalSnapshots({ relaxed: true });
+      if (legacy.list.length > 0) {
+        state.records = mergeSalesListsLocalRemote(state.records, legacy.list);
+        authTrace("activate_app:auto_relaxed_salvage", { rows: state.records.length, sources: legacy.sources });
+        setSyncStatus("وُجدت بيانات قديمة في المتصفّح وأُعيدت تلقائيًا. تحقّق من «سجل الأيام».", true);
+      }
+    }
     ensureAllSalesRecordsHaveIds();
     if (state.db && !isSalesClearPending() && state.records.length > 0) {
       await upsertManyRemote(state.records);
@@ -909,6 +918,17 @@ function userRecoverSalesKey() {
   return state.currentUser ? `${userStorageKey()}:recover-snapshot` : "";
 }
 
+/** صف وحيد يشتبه أنه عملية يومية (نسخ قديمة أو حقول مختلفة الاسم). */
+function rowLooksLikeSaleRecord(row) {
+  if (!row || typeof row !== "object") return false;
+  if ("totalSale" in row || "qty" in row || "unitPrice" in row) return true;
+  const dateOk = row.date != null && String(row.date).trim().length >= 8;
+  const productOk = row.product != null && String(row.product).trim() !== "";
+  if (dateOk && productOk) return true;
+  if (productOk && ("cost" in row || "unpaid" in row || "unpaidAmount" in row || "profit" in row)) return true;
+  return false;
+}
+
 /** يعتبر المحتوى قائمة عمليات يومية قابلة للدمج إن كان هيكلًا معروفًا */
 function arrayLooksLikeDailySalesRecords(list) {
   if (!Array.isArray(list) || list.length === 0) return false;
@@ -922,10 +942,15 @@ function arrayLooksLikeDailySalesRecords(list) {
   return hits >= Math.min(sample.length * 2, 4);
 }
 
-/**
- * تجمع كل نسَخ المبيعات المحفوظة تحت مفتاح STORAGE_KEY وأبنائه (طوارئ، نسخة احتياط، لقطة مستخدم…)
- * لتفادي الاعتماد على مكان واحد فقط بعد أي كتابة خاطئة سابقة إلى [].
- */
+function arrayLooksLikeDailySalesRecordsRelaxed(list) {
+  if (!Array.isArray(list) || list.length === 0) return false;
+  const cap = Math.min(list.length, 40);
+  for (let i = 0; i < cap; i++) {
+    if (rowLooksLikeSaleRecord(list[i])) return true;
+  }
+  return false;
+}
+
 /** دمج جهازي + محتوى حساب محدِّث الآن؛ الحالي يغلب عند تعارض نفس المعرف */
 async function recoverSalesMergeFromDeviceAndCloud() {
   if (!state.currentUser) {
@@ -941,9 +966,15 @@ async function recoverSalesMergeFromDeviceAndCloud() {
   }
 
   const before = state.records.length;
-  const salvagePack = loadSalesFromAllLocalSnapshots();
+  const strictPack = loadSalesFromAllLocalSnapshots();
+  const relaxPack = loadSalesFromAllLocalSnapshots({ relaxed: true });
+  const combinedSalvage = mergeSalesListsLocalRemote(relaxPack.list, strictPack.list);
+  const salvagePack = {
+    list: combinedSalvage,
+    sources: Math.max(strictPack.sources, relaxPack.sources, combinedSalvage.length > 0 ? 1 : 0)
+  };
 
-  let merged = mergeSalesListsLocalRemote(salvagePack.list, state.records);
+  let merged = mergeSalesListsLocalRemote(combinedSalvage, state.records);
   let remotePullHadRows = false;
   let remotePullFailed = false;
 
@@ -1002,7 +1033,12 @@ async function recoverSalesMergeFromDeviceAndCloud() {
   });
 }
 
-function loadSalesFromAllLocalSnapshots() {
+/**
+ * تجمع نسَخ المبيعات تحت مفتاح STORAGE_KEY وأبنائه.
+ * @param {{ relaxed?: boolean }} [options] — relaxed: قبول نسخ قديمة بحقول أقل (استعادة أوسع).
+ */
+function loadSalesFromAllLocalSnapshots(options = {}) {
+  const { relaxed = false } = options;
   const chunks = [];
   const scannedKeys = new Set();
 
@@ -1015,7 +1051,8 @@ function loadSalesFromAllLocalSnapshots() {
       return;
     }
     const arr = Array.isArray(parsed) ? parsed : [];
-    if (!arrayLooksLikeDailySalesRecords(arr)) return;
+    const looksOk = relaxed ? arrayLooksLikeDailySalesRecordsRelaxed(arr) : arrayLooksLikeDailySalesRecords(arr);
+    if (!looksOk) return;
     const list = normalizeRecordsStep2(normalizeRecordsStep1(arr));
     if (list.length === 0) return;
     chunks.push({ list, key: keyLabel });
