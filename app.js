@@ -194,6 +194,9 @@ const state = {
   authEventsBound: false
 };
 
+/** يمنع تنشيطَيْن متزامنين (مثلاً SIGNED_IN + refreshSession) يخلطان أو يصفّران السجل */
+let __salesActivateTail = Promise.resolve();
+
 function showFatalUiError(message) {
   if (!dom.authStatus) return;
   dom.authStatus.textContent = `عطل JavaScript: ${message}`;
@@ -598,12 +601,35 @@ function applySignedOutState(message = "تم تسجيل الخروج.") {
   setAuthStatus(message, true);
 }
 
+function renderSalesAppShell() {
+  render();
+  renderIdeas();
+  renderExpenses();
+  renderInvestors();
+  renderWasiyyat();
+  renderDeletionLog();
+  renderIdeasPreview();
+}
+
 async function activateAppForUser(user, statusSuffix = "") {
-  authTrace("activate_app:start", { userId: user?.id || null, statusSuffix });
   if (!user) return;
+  const prev = __salesActivateTail;
+  let unlock;
+  __salesActivateTail = new Promise((r) => {
+    unlock = r;
+  });
+  await prev.catch(() => {});
+  try {
+    await activateAppSerialized(user, statusSuffix);
+  } finally {
+    unlock();
+  }
+}
+
+async function activateAppSerialized(user, statusSuffix = "") {
+  authTrace("activate_app:start", { userId: user?.id || null, statusSuffix });
   state.currentUser = user;
 
-  // Open app UI immediately after successful auth.
   setPageMode(true);
   forceShowApp();
   setAppEnabled(true);
@@ -617,32 +643,68 @@ async function activateAppForUser(user, statusSuffix = "") {
     state.investors = loadInvestors();
     state.wasiyyat = loadWasiyyat();
     state.deletionLog = loadDeletionLog();
-    let remote = await loadRecordsFromRemote();
+
+    const remotePull0 = await loadRecordsFromRemote();
+    let remote = remotePull0.records;
+    let remoteOk = remotePull0.ok;
+
     authTrace("activate_app:data_loaded", {
       localCount: local.length,
       localSalvageSources: localLoad.sources,
       remoteCount: remote.length,
+      remoteOk,
       ideasCount: state.ideas.length,
       investorsCount: state.investors.length,
       salesClearPending: isSalesClearPending()
     });
 
-    /* عند الطلب المحلي بالمسح: لا نعيد سحب نسخة Supabase القديمة فوق القائمة الفارغة */
+    /* مسح معلّق: لا نصفّر الواجهة في كل تحديث بينما لا يزال السحابة أو المحلي له بيانات */
     if (isSalesClearPending()) {
-      if (remote.length > 0 && state.db) {
+      if (remoteOk && remote.length > 0 && state.db) {
         await deleteAllRemote();
-        remote = await loadRecordsFromRemote();
+        const rp2 = await loadRecordsFromRemote();
+        remote = rp2.records;
+        remoteOk = rp2.ok;
       }
-      state.records = [];
-      authTrace("activate_app:honor_sales_clear_pending", { remoteCountAfter: remote.length });
-      if (remote.length === 0) setSalesClearPending(false);
-      else setSyncStatus("محذوف محليًا؛ تعذّر تأكيد المسح على السحابة — جارِ إعادة المحاولة تلقائيًا.", false);
+      const cloudEmptyConfirmed = remoteOk && remote.length === 0;
+
+      authTrace("activate_app:honor_sales_clear_pending", {
+        remoteCountAfter: remote.length,
+        remoteOk,
+        cloudEmptyConfirmed
+      });
+
+      if (cloudEmptyConfirmed) {
+        state.records = [];
+        saveRecords({ allowEmptyBackup: true, allowEmptyPersist: true });
+        setSalesClearPending(false);
+        setSyncStatus("اكتمل تأكيد المسح محليًا وعلى السحابة.", true);
+      } else {
+        state.records = local.length > 0 ? local.slice() : [];
+        ensureAllSalesRecordsHaveIds();
+        if (!remoteOk) {
+          setSyncStatus(
+            "مسح معلّق؛ تعذّر التحقق من السحابة — أُعيد عرض بيانات جهازك ولن يُفقد المحلي بعد التحديث. عُد إلى الإعدادات لمتابعة المحاولة.",
+            false
+          );
+        } else if (remote.length > 0) {
+          setSyncStatus(
+            "كان هناك طلب مسح لم يكتمل على السحابة — عُرضت بياناتك من الجهاز. من الإعدادات يمكن المحاولة مرة أخرى.",
+            false
+          );
+        } else {
+          setSyncStatus("مسح معلّق — جاري التحقق من السحابة عند الاتصال.", false);
+        }
+      }
+    } else if (!remoteOk) {
+      state.records = local.slice();
+      authTrace("activate_app:remote_fetch_failed_use_local_only", { count: state.records.length });
+      setSyncStatus("تعذّر جلب السَحَابة الآن؛ وُضِعت بيانات جهازك (تحديث الصفحة لا يمسح المحلي).", false);
     } else if (remote.length === 0 && local.length > 0) {
       await upsertManyRemote(local);
       state.records = local;
       authTrace("activate_app:using_local_and_uploaded", { count: local.length });
     } else {
-      /* السحابة وحدها لا تُستبدل بالمحلي: ندمج حتى لا تُفقد صفوف كانت محلية فقط */
       state.records = mergeSalesListsLocalRemote(remote, local);
       authTrace("activate_app:merged_remote_local", {
         remote: remote.length,
@@ -650,34 +712,33 @@ async function activateAppForUser(user, statusSuffix = "") {
         merged: state.records.length
       });
     }
-    /* ما زال السجلّ فارغًا رغم نسخ قد تكون بنسق أقدم — محاولة ثانية بفلتر أوسع */
-    if (!isSalesClearPending() && state.records.length === 0) {
-      const legacy = loadSalesFromAllLocalSnapshots({ relaxed: true });
-      if (legacy.list.length > 0) {
-        state.records = mergeSalesListsLocalRemote(state.records, legacy.list);
-        authTrace("activate_app:auto_relaxed_salvage", { rows: state.records.length, sources: legacy.sources });
-        setSyncStatus("وُجدت بيانات قديمة في المتصفّح وأُعيدت تلقائيًا. تحقّق من «سجل الأيام».", true);
-      }
+
+    /** إذا بقي السجل فارغًا رغم وجود خام في مفتاح المستخدم — لا نترك الواجهة تُظهر ضياعًا */
+    if (!isSalesClearPending() && state.records.length === 0 && local.length > 0) {
+      state.records = local.slice();
+      ensureAllSalesRecordsHaveIds();
+      saveRecords();
+      authTrace("activate_app:rehydrate_from_local_after_merge", { count: state.records.length });
+      setSyncStatus("أُعيد تحميل المبيعات من التخزين المحلي بعد دمج السحابة.", true);
     }
+
     ensureAllSalesRecordsHaveIds();
     if (state.db && !isSalesClearPending() && state.records.length > 0) {
       await upsertManyRemote(state.records);
     }
-    if (isSalesClearPending()) saveRecords({ allowEmptyBackup: true, allowEmptyPersist: true });
-    else saveRecords();
-    if (!isSalesClearPending() && localLoad.sources >= 2 && state.records.length > 0) {
+    const skipSaveWhilePendingEmpty = isSalesClearPending() && state.records.length === 0;
+    if (!skipSaveWhilePendingEmpty) {
+      saveRecords();
+    } else {
+      authTrace("activate_app:skip_sales_local_persist_clear_stalemate", { remoteLeft: remote.length, remoteOk });
+    }
+    if (!isSalesClearPending() && remoteOk && localLoad.sources >= 2 && state.records.length > 0) {
       setSyncStatus(
         `تم ضم ${localLoad.sources} نسَخًا محليًا؛ عندك الآن ${state.records.length} عملية في سجل البيع — راجع الأرقام ثم أكمل استخدامًا عاديًا.`,
         true
       );
     }
-    render();
-    renderIdeas();
-    renderExpenses();
-    renderInvestors();
-    renderWasiyyat();
-    renderDeletionLog();
-    renderIdeasPreview();
+    renderSalesAppShell();
     authTrace("activate_app:ui_synced", { records: state.records.length });
   } catch (err) {
     authTrace("activate_app:sync_error", { message: err?.message || "unknown" });
@@ -692,13 +753,7 @@ async function activateAppForUser(user, statusSuffix = "") {
         }
       } catch (_) {}
     }
-    // Keep user inside app even if sync fails.
-    render();
-    renderIdeas();
-    renderExpenses();
-    renderInvestors();
-    renderWasiyyat();
-    renderIdeasPreview();
+    renderSalesAppShell();
     if (state.records.length === 0) {
       setSyncStatus(`تعذر مزامنة بعض البيانات: ${err?.message || "خطأ غير معروف"}`, false);
     }
@@ -931,6 +986,16 @@ function userRecoverSalesKey() {
   return state.currentUser ? `${userStorageKey()}:recover-snapshot` : "";
 }
 
+/** نسخة المبيعات في sessionStorage لنفس التبويب — تبقى بعد F5 ولا تُستبدل بخطأ بـ [] */
+function tabSessionMirrorSalesKey() {
+  return state.currentUser ? `${STORAGE_KEY}:tab-mirror:${state.currentUser.id}` : "";
+}
+
+/** نسخة لكل مستخدم تُحدَّث عند كل حفظ؛ تُقرأ مبكرًا عند التحميل لتقليل ضياع F5 */
+function persistentDeviceSalesKey() {
+  return state.currentUser ? `${STORAGE_KEY}:persist:${state.currentUser.id}` : `${STORAGE_KEY}:persist:guest`;
+}
+
 /** صف وحيد يشتبه أنه عملية يومية (نسخ قديمة أو حقول مختلفة الاسم). */
 function rowLooksLikeSaleRecord(row) {
   if (!row || typeof row !== "object") return false;
@@ -979,26 +1044,17 @@ async function recoverSalesMergeFromDeviceAndCloud() {
   }
 
   const before = state.records.length;
-  const strictPack = loadSalesFromAllLocalSnapshots();
-  const relaxPack = loadSalesFromAllLocalSnapshots({ relaxed: true });
-  const combinedSalvage = mergeSalesListsLocalRemote(relaxPack.list, strictPack.list);
-  const salvagePack = {
-    list: combinedSalvage,
-    sources: Math.max(strictPack.sources, relaxPack.sources, combinedSalvage.length > 0 ? 1 : 0)
-  };
-
-  let merged = mergeSalesListsLocalRemote(combinedSalvage, state.records);
+  const salvagePack = loadSalesFromAllLocalSnapshots();
+  let merged = mergeSalesListsLocalRemote(salvagePack.list, state.records);
   let remotePullHadRows = false;
   let remotePullFailed = false;
 
   if (ensureSupabaseClient() && state.db) {
-    try {
-      const remotePack = await loadRecordsFromRemote({ quiet: true });
-      remotePullHadRows = remotePack.length > 0;
-      if (remotePack.length > 0) merged = mergeSalesListsLocalRemote(remotePack, merged);
-    } catch (err) {
-      remotePullFailed = true;
-      log("warn", "recover_sales_remote_failed", String(err?.message || err));
+    const remotePull = await loadRecordsFromRemote({ quiet: true });
+    remotePullFailed = !remotePull.ok;
+    remotePullHadRows = remotePull.records.length > 0;
+    if (remotePull.ok && remotePull.records.length > 0) {
+      merged = mergeSalesListsLocalRemote(remotePull.records, merged);
     }
   }
 
@@ -1007,7 +1063,7 @@ async function recoverSalesMergeFromDeviceAndCloud() {
 
   ensureAllSalesRecordsHaveIds();
   saveRecords();
-  render();
+  renderSalesAppShell();
 
   const n = state.records.length;
 
@@ -1047,15 +1103,13 @@ async function recoverSalesMergeFromDeviceAndCloud() {
 }
 
 /**
- * تجمع نسَخ المبيعات تحت مفتاح STORAGE_KEY وأبنائه.
- * @param {{ relaxed?: boolean }} [options] — relaxed: قبول نسخ قديمة بحقول أقل (استعادة أوسع).
+ * تجمع نسَخ المبيعات تحت STORAGE_KEY وفروعه (مسح المرآة، المفضّلة، ثم بقية المفاتيح).
  */
-function loadSalesFromAllLocalSnapshots(options = {}) {
-  const { relaxed = false } = options;
+function loadSalesFromAllLocalSnapshots() {
   const chunks = [];
   const scannedKeys = new Set();
 
-  function pushChunkFromRaw(raw, keyLabel) {
+  function addChunkFromRaw(raw, keyLabel) {
     if (!raw) return;
     let parsed;
     try {
@@ -1064,19 +1118,39 @@ function loadSalesFromAllLocalSnapshots(options = {}) {
       return;
     }
     const arr = Array.isArray(parsed) ? parsed : [];
-    const looksOk = relaxed ? arrayLooksLikeDailySalesRecordsRelaxed(arr) : arrayLooksLikeDailySalesRecords(arr);
-    if (!looksOk) return;
-    const list = normalizeRecordsStep2(normalizeRecordsStep1(arr));
+    if (arr.length === 0) return;
+    const safeObjs = arr.filter((r) => r && typeof r === "object");
+    if (safeObjs.length === 0) return;
+
+    const looksOk =
+      arrayLooksLikeDailySalesRecords(arr) || arrayLooksLikeDailySalesRecordsRelaxed(arr);
+
+    let list = normalizeRecordsStep2(normalizeRecordsStep1(safeObjs));
+    if (!looksOk) {
+      list = list.filter((r) => r && typeof r === "object" && rowLooksLikeSaleRecord(r));
+    }
     if (list.length === 0) return;
     chunks.push({ list, key: keyLabel });
   }
 
-  /** ترتيب مفضل أولًا، ثم مسح شامل لجميع المفاتيح ذات البادئة */
-  const prioritized = [...new Set([userRecoverSalesKey(), userStorageKey(), backupStorageKey(), STORAGE_KEY, emergencyRecordsKey()].filter(Boolean))];
+  const mirrorK = tabSessionMirrorSalesKey();
+  if (mirrorK) {
+    try {
+      addChunkFromRaw(sessionStorage.getItem(mirrorK), `${mirrorK}@session`);
+    } catch (err) {
+      log("warn", "session_mirror_read_failed", String(err?.message || err));
+    }
+  }
+
+  const prioritized = [
+    ...new Set(
+      [persistentDeviceSalesKey(), userRecoverSalesKey(), userStorageKey(), backupStorageKey(), STORAGE_KEY, emergencyRecordsKey()].filter(Boolean)
+    )
+  ];
   for (const k of prioritized) {
     if (!k) continue;
     scannedKeys.add(k);
-    pushChunkFromRaw(localStorage.getItem(k), k);
+    addChunkFromRaw(localStorage.getItem(k), k);
   }
 
   try {
@@ -1085,11 +1159,32 @@ function loadSalesFromAllLocalSnapshots(options = {}) {
       if (!key || scannedKeys.has(key)) continue;
       if (key !== STORAGE_KEY && !key.startsWith(`${STORAGE_KEY}:`)) continue;
       scannedKeys.add(key);
-      pushChunkFromRaw(localStorage.getItem(key), key);
+      addChunkFromRaw(localStorage.getItem(key), key);
     }
   } catch (err) {
     log("warn", "local_storage_scan_sales_keys_failed", String(err?.message || err));
   }
+
+  function addUserKeyRawFallback() {
+    const rk = userStorageKey();
+    const raw = rk ? localStorage.getItem(rk) : null;
+    if (!raw || raw.trim() === "" || raw.trim() === "[]") return;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      const safeObjs = parsed.filter((r) => r && typeof r === "object");
+      if (!safeObjs.length) return;
+      let list = normalizeRecordsStep2(normalizeRecordsStep1(safeObjs));
+      list = list.filter((r) => r && rowLooksLikeSaleRecord(r));
+      if (!list.length) return;
+      chunks.push({ list, key: `${rk}+fallback` });
+      log("warn", "local_load_user_key_fallback_used", { count: list.length });
+    } catch {
+      //
+    }
+  }
+
+  if (chunks.length === 0 && state.currentUser) addUserKeyRawFallback();
 
   if (chunks.length === 0) return { list: [], sources: 0 };
 
@@ -1103,17 +1198,6 @@ function loadSalesFromAllLocalSnapshots(options = {}) {
 
   log("info", "local_load_merged", { sources: chunks.length, count: acc.length, keysSample: keyTrail.slice(0, 8) });
   return { list: acc, sources: chunks.length };
-}
-
-function loadRecords() {
-  try {
-    const { list, sources } = loadSalesFromAllLocalSnapshots();
-    if (list.length === 0) log("info", "local_load", { key: userStorageKey(), scannedSources: sources, count: 0 });
-    return list;
-  } catch {
-    log("warn", "local_load_failed", { key: userStorageKey() });
-    return [];
-  }
 }
 
 function saveRecords(options = {}) {
@@ -1130,6 +1214,14 @@ function saveRecords(options = {}) {
   }
 
   localStorage.setItem(userStorageKey(), payload);
+  try {
+    const mk = tabSessionMirrorSalesKey();
+    if (mk) {
+      if (state.records.length > 0) sessionStorage.setItem(mk, payload);
+      else sessionStorage.removeItem(mk);
+    }
+  } catch (_) {}
+
   const recoverK = userRecoverSalesKey();
 
   if (state.records.length > 0) {
@@ -1137,11 +1229,22 @@ function saveRecords(options = {}) {
     localStorage.setItem(emergencyRecordsKey(), payload);
     localStorage.setItem(backupStorageKey(), payload);
     if (recoverK) localStorage.setItem(recoverK, payload);
+    try {
+      localStorage.setItem(persistentDeviceSalesKey(), payload);
+    } catch (_) {}
   } else if (allowEmptyBackup) {
     /** مسح مقصود فقط عبر أزرار الإعدادات */
     localStorage.setItem(emergencyRecordsKey(), payload);
     localStorage.setItem(backupStorageKey(), payload);
     if (recoverK) localStorage.removeItem(recoverK);
+    try {
+      localStorage.removeItem(persistentDeviceSalesKey());
+    } catch (_) {}
+  } else if (allowEmptyPersist && isEmpty) {
+    /** حذف آخر عملية؛ لا نترك persist بقائمة قديمة */
+    try {
+      localStorage.removeItem(persistentDeviceSalesKey());
+    } catch (_) {}
   }
   /** إن كانت [] من غير allowEmptyBackup: لا نمسح الطوارئ/النسخ الاحتياطي — قد تبقي آخر قائمة جيّدة */
 
@@ -1151,6 +1254,28 @@ function saveRecords(options = {}) {
     touchedSafetyStores: state.records.length > 0 || allowEmptyBackup,
     intentionalEmpty: allowEmptyBackup && state.records.length === 0
   });
+}
+
+/** طبقتان أخريتان قبل إغلاق/تحديث الصفحة (أحيانًا لا يُستدعى saveRecords بوقت كافٍ) */
+function bindSalesFlushOnPageHide() {
+  if (globalThis.__dailySalesPageHideBound) return;
+  globalThis.__dailySalesPageHideBound = true;
+  const flush = () => {
+    try {
+      if (!state.currentUser || state.records.length === 0) return;
+      const payload = JSON.stringify(state.records);
+      localStorage.setItem(userStorageKey(), payload);
+      localStorage.setItem(persistentDeviceSalesKey(), payload);
+      localStorage.setItem(emergencyRecordsKey(), payload);
+      localStorage.setItem(backupStorageKey(), payload);
+      const rk = userRecoverSalesKey();
+      if (rk) localStorage.setItem(rk, payload);
+      const mk = tabSessionMirrorSalesKey();
+      if (mk) sessionStorage.setItem(mk, payload);
+    } catch (_) {}
+  };
+  window.addEventListener("pagehide", flush);
+  window.addEventListener("beforeunload", flush);
 }
 
 function loadIdeas() {
@@ -1289,9 +1414,10 @@ function saveDeletionLog() {
   localStorage.setItem(userDeletionLogKey(), JSON.stringify(state.deletionLog));
 }
 
+/** @returns {{ ok: boolean, records: any[] }} — ok=false أي فشل الشبكة/المخدم، وليس «لا صفوف» */
 async function loadRecordsFromRemote(options = {}) {
   const { quiet = false } = options;
-  if (!state.db || !state.currentUser) return [];
+  if (!state.db || !state.currentUser) return { ok: true, records: [] };
   log("info", "remote_select_start", { table: SUPABASE_TABLE, ownerId: state.currentUser.id });
   const { data, error } = await state.db
     .from(SUPABASE_TABLE)
@@ -1304,12 +1430,15 @@ async function loadRecordsFromRemote(options = {}) {
       setAuthStatus(`فشل قراءة البيانات من Supabase: ${error.message}`, false);
       setSyncStatus(`فشل القراءة من Supabase: ${error.message}`, false);
     }
-    return [];
+    return { ok: false, records: [] };
   }
   const rows = (data || []).length;
   log("info", "remote_select_ok", { rows });
   if (!quiet) setSyncStatus("تم تحميل البيانات من Supabase.", true);
-  return normalizeRecordsStep2(normalizeRecordsStep1((data || []).map((row) => row.payload).filter(Boolean)));
+  const records = normalizeRecordsStep2(
+    normalizeRecordsStep1((data || []).map((row) => row.payload).filter(Boolean))
+  );
+  return { ok: true, records };
 }
 
 async function upsertRecordRemote(record) {
@@ -1469,6 +1598,27 @@ function applyRecordToSaleForm(rec) {
     if (dom.debtRepaidDate) dom.debtRepaidDate.value = "";
   }
   syncDebtRepaidUi();
+}
+
+/** بعد «تمرير» لمربع البيع: يظهر النموذج ويُركَّز على ما كُتِب لتقليل خطأ الزبائن */
+function scrollAndFocusSaleFormForEdit(rec) {
+  const anchor = dom.salesSectionCard || dom.form;
+  if (anchor) scrollToPanel(anchor);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      try {
+        const desc = dom.fields.description;
+        const prod = dom.fields.product;
+        const descLen = String(rec?.description || "").trim().length;
+        /** أولًا وصف البيع إن له نص؛ وإلا اسم المنتج */
+        let el =
+          descLen >= 4 && desc ? desc : prod && String(rec?.product || "").trim().length > 0 ? prod : prod || desc || dom.fields.date;
+        if (!el || typeof el.focus !== "function") return;
+        el.focus({ preventScroll: true });
+        if (el === prod && typeof el.select === "function") el.select();
+      } catch (_) {}
+    });
+  });
 }
 
 function investorPhoneDigits(raw) {
@@ -2124,6 +2274,7 @@ function init() {
 
   // Bind auth actions early so login/signup buttons always work.
   bindAuthEvents();
+  bindSalesFlushOnPageHide();
   if (state.db) {
     state.db.auth.onAuthStateChange(async (event, session) => {
       log("info", "auth_state_change", { event, hasSession: !!session, userId: session?.user?.id || null });
@@ -2274,8 +2425,8 @@ function init() {
       }
       if (cancelBtn) cancelBtn.classList.remove("hidden");
       setMainView("sales");
-      scrollToPanel(dom.workspaceTop);
       closeSidebarDrawerIfMobile();
+      scrollAndFocusSaleFormForEdit(rec);
       return;
     }
 

@@ -2,6 +2,9 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
+  <script>
+    document.documentElement.toggleAttribute("data-local-file", location.protocol === "file:");
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#070a12" />
   <meta name="color-scheme" content="dark" />
@@ -1461,9 +1464,51 @@
       .bottom-nav button { font-size: 10px; padding-inline: 2px; }
       .quick-action-btn { font-size: 13px; padding: 12px 10px; }
     }
+
+    /* فتح index.html بطريقة الملف (file:) — قيود أمن المتصفّح ورسالة Unsafe URL */
+    aside#fileProtoHint {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      inset-inline: 0;
+      z-index: 99999;
+      padding: 10px 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #fef3c7;
+      background: linear-gradient(180deg, rgba(180, 83, 9, 0.95), rgba(120, 53, 15, 0.98));
+      border-top: 1px solid rgba(251, 191, 36, 0.4);
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      text-align: center;
+    }
+
+    aside#fileProtoHint code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12px;
+      direction: ltr;
+      unicode-bidi: embed;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    html[data-local-file] aside#fileProtoHint {
+      display: flex;
+    }
   </style>
 </head>
 <body>
+  <aside id="fileProtoHint" aria-label="بيئة ملف محلي">
+    هذه الصفحة تُفتح كـ مسار ملف (<code>file://</code>)؛ المتصفّح يفرض عليها قيوداً وقد يطبع تحذير «Unsafe URL». للاستخدام الآمن محلياً، من مجلد المشروع نفّذ
+    <code>npx --yes serve -l 5173</code>
+    ثم افتح في المتصفّح
+    <code>http://localhost:5173</code>
+    (على Vercel لا يحدث هذا؛ التحذير خاص بتشغيل الملف من القرص).
+  </aside>
   <div id="authPage" class="auth-wrap">
     <div class="auth-card">
       <h2>تسجيل الدخول بـ Gmail</h2>
@@ -1953,6 +1998,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260503g"></script>
+  <script defer src="./app.js?v=20260503l"></script>
 </body>
 </html>
