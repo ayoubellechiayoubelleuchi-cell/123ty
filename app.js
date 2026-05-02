@@ -15,6 +15,13 @@ const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hdnF2bGptaXB6aGVxam1semd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTAzNzQsImV4cCI6MjA5MjM2NjM3NH0.xDeyeaAhcyjuLEWUOfDRQKdjDUDiQNfw6UMlcdm5n2k";
 const SUPABASE_TABLE = "sales_records";
 
+/**
+ * تنظيم الملف (أين «النظام» في app.js):
+ * 1) dom + state — عناصر الصفحة والحالة الحية.
+ * 2) Auth + activateAppForUser — تسجيل الدخول وجلب/دمج المبيعات مع Supabase.
+ * 3) سجلات المبيعات — load/saveRecords، merge، computeRecord، render.
+ * 4) الإعدادات — recoverSalesMergeFromDeviceAndCloud (استعادة من الجهاز+السحابة) ومسح السجلات في init().
+ */
 const LOG_PREFIX = "[daily-sales]";
 const AUTH_MESSAGES = {
   invalidGmail: "أدخل Gmail صحيح.",
@@ -63,6 +70,7 @@ const dom = {
   investorsEmptyState: document.getElementById("investorsEmptyState"),
   wasiyyatEmptyState: document.getElementById("wasiyyatEmptyState"),
   resetBtn: document.getElementById("resetData"),
+  recoverSalesBtn: document.getElementById("recoverSalesBtn"),
   resetIdeasBtn: document.getElementById("resetIdeas"),
   addIdeaToInvestorsBtn: document.getElementById("addIdeaToInvestorsBtn"),
   resetInvestorsBtn: document.getElementById("resetInvestors"),
@@ -415,8 +423,7 @@ function setAppEnabled(enabled) {
   for (const btn of dom.rowsContainer.querySelectorAll("button[data-sale-edit], button[data-sale-delete]")) btn.disabled = !enabled;
   for (const btn of dom.wasiyyatRowsContainer?.querySelectorAll("button[data-wasiyyat-delete]") ?? []) btn.disabled = !enabled;
   dom.resetBtn.disabled = !enabled;
-  const recoverSalesBtn = document.getElementById("recoverSalesBtn");
-  if (recoverSalesBtn) recoverSalesBtn.disabled = !enabled;
+  if (dom.recoverSalesBtn) dom.recoverSalesBtn.disabled = !enabled;
 }
 
 const SIDEBAR_NAV_IDS = [
@@ -2508,7 +2515,7 @@ function init() {
     addDeletionLog(`تم حذف خانة المستثمرين (${deletedCount})`);
   });
 
-  document.getElementById("recoverSalesBtn")?.addEventListener("click", () => {
+  dom.recoverSalesBtn?.addEventListener("click", () => {
     void recoverSalesMergeFromDeviceAndCloud();
   });
 
