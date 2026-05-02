@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <link rel="icon" href="data:,">
   <title>مشروعي — تسجيل المبيعات</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -41,6 +41,11 @@
 
     * { box-sizing: border-box; }
 
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
     body {
       margin: 0;
       font-family: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
@@ -48,6 +53,7 @@
       color: var(--text);
       line-height: 1.5;
       min-height: 100vh;
+      min-height: 100dvh;
     }
 
     /* ----- Auth (داكن مثل التطبيق) ----- */
@@ -144,6 +150,7 @@
 
     /* ----- تخطيط التطبيق ----- */
     #appPage.app-layout {
+      overflow-x: clip;
       background: radial-gradient(ellipse 100% 60% at 50% -10%, rgba(124, 58, 237, 0.12), transparent 50%),
         linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg2) 100%);
     }
@@ -151,6 +158,7 @@
     .app-layout {
       display: flex;
       min-height: 100vh;
+      min-height: 100dvh;
       align-items: stretch;
     }
 
@@ -583,7 +591,7 @@
       pointer-events: none;
     }
 
-    /* شريط سفلي — مثل التطبيق */
+    /* شريط سفلي — مقاسات مريحة للمس */
     .bottom-nav {
       display: none;
       position: fixed;
@@ -591,50 +599,55 @@
       left: 0;
       right: 0;
       z-index: 999;
-      padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-      background: rgba(8, 12, 20, 0.92);
+      padding: 10px max(12px, env(safe-area-inset-left, 0px)) calc(12px + env(safe-area-inset-bottom, 0px))
+        max(12px, env(safe-area-inset-right, 0px));
+      background: rgba(8, 12, 20, 0.94);
       border-top: 1px solid var(--stroke);
       backdrop-filter: blur(16px);
       align-items: flex-end;
       justify-content: space-around;
-      gap: 4px;
+      gap: 6px;
     }
     .bottom-nav button {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 2px;
-      padding: 6px 4px;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px 6px;
+      min-height: 48px;
       border: none;
       background: transparent;
       color: var(--text-muted);
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
       font-family: inherit;
       cursor: pointer;
-      border-radius: 12px;
-      max-width: 72px;
+      border-radius: 14px;
+      max-width: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
-    .bottom-nav button.active { color: #c4b5fd; background: rgba(124, 58, 237, 0.2); }
-    .bottom-nav .bn-ico { font-size: 1.35rem; line-height: 1; }
+    .bottom-nav button.active { color: #c4b5fd; background: rgba(124, 58, 237, 0.22); }
+    .bottom-nav .bn-ico { font-size: 1.45rem; line-height: 1; }
     .bottom-nav .fab-wrap {
       position: relative;
       flex: 0 0 auto;
-      width: 56px;
+      width: 62px;
       display: flex;
       justify-content: center;
       align-items: flex-end;
-      margin-top: -22px;
+      margin-top: -24px;
     }
     .bottom-nav .fab {
-      width: 56px;
-      height: 56px;
+      width: 60px;
+      height: 60px;
       border-radius: 50%;
       border: none;
       background: var(--nav-active);
       color: #fff;
-      font-size: 1.75rem;
+      font-size: 2rem;
       font-weight: 300;
       line-height: 1;
       box-shadow: var(--glow-purple);
@@ -643,10 +656,17 @@
       display: grid;
       place-items: center;
       transition: transform 0.12s ease, box-shadow 0.12s ease;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .bottom-nav .fab.active {
       box-shadow: 0 0 0 3px rgba(196, 181, 253, 0.5), var(--glow-purple);
       transform: scale(1.05);
+    }
+
+    /* ارتفاع الشريط السفلي + هامش المحتوى (يتغير مع المنطقة الآمنة) */
+    .main-workspace {
+      --dock-h: calc(112px + env(safe-area-inset-bottom, 0px));
     }
 
     @media (max-width: 960px) {
@@ -655,9 +675,34 @@
       .app-layout { flex-direction: column; position: relative; }
 
       .main-workspace {
-        padding: 14px 12px calc(92px + env(safe-area-inset-bottom));
-        padding-inline-end: 54px;
+        padding: max(12px, env(safe-area-inset-top, 0px)) 14px var(--dock-h);
+        padding-inline-start: max(14px, env(safe-area-inset-right, 0px));
+        /* زر فتح القائمة على الجانب الأيسر (تركيب RTL) */
+        padding-inline-end: calc(54px + env(safe-area-inset-left, 0px));
       }
+
+      #appPage .workspace-inner {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      #appPage input:not([type="checkbox"]):not([type="radio"]),
+      #appPage textarea {
+        font-size: 16px;
+        line-height: 1.45;
+        min-height: 48px;
+        padding: 13px 15px;
+      }
+      #appPage textarea {
+        min-height: 104px;
+      }
+      #appPage label {
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      #appPage .form-section-title { font-size: 15px; }
+      #appPage .form-section-lead { font-size: 13px; }
+      .one-field { max-width: none; }
 
       .sidebar-backdrop {
         display: block;
@@ -689,22 +734,64 @@
         transition: transform 0.28s ease;
         border-inline-start: none;
         border-inline-end: 1px solid var(--sidebar-border);
-        padding: 16px 12px calc(88px + env(safe-area-inset-bottom));
+        padding: max(16px, env(safe-area-inset-top, 0px)) 14px calc(100px + env(safe-area-inset-bottom, 0px)) 14px;
         overflow-y: auto;
         box-shadow: 12px 0 40px rgba(0, 0, 0, 0.5);
       }
       .app-layout.sidebar-open .app-sidebar { transform: translateX(0); }
 
+      .sidebar-edge-btn {
+        min-width: 48px;
+        min-height: 48px;
+        padding: 12px 16px;
+        left: max(8px, env(safe-area-inset-left, 0px));
+      }
+
       .sidebar-brand { margin-bottom: 14px; }
-      .workspace-title { font-size: 1.2rem; margin-bottom: 12px; }
-      .panel-card { padding: 16px 14px; }
-      .grid { grid-template-columns: 1fr; gap: 10px; }
+      .workspace-title { font-size: clamp(1.15rem, 4.2vw, 1.35rem); margin-bottom: 14px; }
+      .panel-card { padding: 18px 16px; border-radius: 18px; }
+      .grid { grid-template-columns: 1fr; gap: 14px; }
       .stats-row, .idea-panels { grid-template-columns: 1fr; }
-      .actions { gap: 8px; }
-      .actions button { width: 100%; min-height: 44px; }
+      .actions { gap: 10px; }
+      .actions button { width: 100%; min-height: 48px; font-size: 15px; padding: 14px 18px; }
+      .table-wrap {
+        -webkit-overflow-scrolling: touch;
+        border-radius: 14px;
+      }
       .table-wrap table { min-width: 720px; }
-      th, td { padding: 8px 6px; font-size: 12px; }
+      th, td { padding: 10px 8px; font-size: 13px; }
+      .btn-small {
+        min-height: 42px;
+        max-width: none;
+      }
+      .idea-type-toggle label {
+        min-height: 48px;
+        padding: 12px 16px;
+        font-size: 14px;
+      }
+      .dashboard-hero-main { padding: 20px 18px; border-radius: 18px; }
+      .dashboard-greet { font-size: 14px; }
+      .dashboard-hero-label { font-size: 13px; }
+      #dashboardHeroProfit { font-size: clamp(1.4rem, 6.2vw, 1.85rem); line-height: 1.2; }
+      .quick-action-btn {
+        min-height: 50px;
+        font-size: 14px;
+        padding: 14px 12px;
+        border-radius: 14px;
+      }
+      .sum-card {
+        padding: 14px 14px;
+        min-height: 86px;
+        font-size: 12px;
+      }
+      .sum-card b { font-size: clamp(16px, 4.5vw, 18px); }
+      .sync-status {
+        font-size: 14px;
+        padding: 12px 14px;
+        border-radius: 14px;
+      }
       .insights-grid { grid-template-columns: 1fr; }
+      .mini-card { padding: 16px; min-height: auto; border-radius: 14px; }
     }
 
     @media (min-width: 961px) {
@@ -805,17 +892,28 @@
     }
 
     @media (max-width: 640px) {
-      .auth-wrap { padding: 14px 8px; }
-      .auth-card { padding: 18px 14px; }
-      .auth-card h2 { font-size: 1.15rem; }
+      .auth-wrap {
+        padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+        padding-inline: max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-left));
+      }
+      .auth-card { padding: 20px 16px; }
+      .auth-card h2 { font-size: 1.18rem; }
+      .auth-card .actions button { min-height: 48px; width: 100%; font-size: 15px; }
       input, textarea { font-size: 16px; }
       .workspace-inner { max-width: 100%; }
-      .panel-card h1, .panel-card h2 { font-size: 1.02rem; }
-      .sum-card b { font-size: 15px; }
-      #appPage .donut-demo { width: 102px; height: 102px; }
-      #appPage .donut-demo::after { inset: 18px; }
-      #appPage .line-demo { height: 104px; }
-      .table-wrap table { min-width: 680px; }
+      .panel-card h1 { font-size: 1.12rem; }
+      .panel-card h2 { font-size: 1.05rem; }
+      #appPage .donut-demo { width: 112px; height: 112px; }
+      #appPage .donut-demo::after { inset: 22px; }
+      #appPage .line-demo { height: 112px; }
+      .quick-actions { gap: 12px; }
+      .summary-strip { gap: 12px; }
+      .table-wrap table { min-width: 640px; }
+    }
+
+    @media (max-width: 380px) {
+      .bottom-nav button { font-size: 10px; padding-inline: 2px; }
+      .quick-action-btn { font-size: 13px; padding: 12px 10px; }
     }
   </style>
 </head>
