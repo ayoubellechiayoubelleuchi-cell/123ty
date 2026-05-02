@@ -1184,17 +1184,60 @@
     .idea-log-card .daily-sale-card__row {
       background: rgba(0, 0, 0, 0.18);
     }
-    #ideasSectionCard .form-section-lite {
-      margin-top: 6px;
-      padding-top: 14px;
-      border-top: 1px dashed var(--stroke2);
-    }
-    #ideasSectionCard .idea-expense-grid {
-      margin-top: 8px;
-    }
     #wasiyyatSection input[type="date"],
-    #ideasSectionCard input[type="date"] {
+    #appSidebar .sidebar-expense-panel input[type="date"] {
       min-height: 48px;
+    }
+
+    /* مصروفات الفكرة — في الشريط الجانبي */
+    .sidebar-expense-panel {
+      margin: 10px 0 14px;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--stroke);
+      background: rgba(0, 0, 0, 0.22);
+      font-size: 12px;
+    }
+    .sidebar-expense-title {
+      display: block;
+      font-size: 13px;
+      font-weight: 800;
+      color: #e9d5ff;
+      margin-bottom: 6px;
+    }
+    .sidebar-expense-lead {
+      margin: 0 0 12px;
+      font-size: 11px;
+      line-height: 1.55;
+      color: var(--sidebar-muted);
+    }
+    .sidebar-expense-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .sidebar-expense-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--sidebar-text);
+      margin-bottom: 6px;
+    }
+    .sidebar-expense-field input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--stroke2);
+      background: var(--elevated);
+      color: var(--sidebar-text);
+      font-family: inherit;
+      font-size: 13px;
+    }
+    .sidebar-expense-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
 
     .wasiyyat-table-wrap {
@@ -1332,7 +1375,7 @@
 
           <div class="panel-card hidden-section" id="ideasSectionCard">
             <h2>خانة الأفكار</h2>
-            <p class="lead">اكتب عرضًا عامًا للفكرة فقط، واحتفظ بالتفاصيل الحساسة في خانة خاصة غير معروضة للمستثمرين.</p>
+            <p class="lead">اكتب عرضًا عامًا للفكرة فقط، واحتفظ بالتفاصيل الحساسة في الخانة الخاصة. مصروفات الفكرة (المشتريات، الثمن، التاريخ) تُحدَّد من الشريط الجانبي.</p>
 
             <form id="ideaForm">
               <div class="idea-type-toggle">
@@ -1364,24 +1407,6 @@
                 <div>
                   <label for="ideaQty" id="ideaQtyLabel">الكمية المتوقعة</label>
                   <input id="ideaQty" type="number" min="0" step="1" placeholder="10" required />
-                </div>
-                <div class="span-2 form-section-lite">
-                  <h3 class="form-section-title">المصروفات</h3>
-                  <p class="form-section-lead">اختياري — سجل مشتريات أو تجهيزات مرتبطة بهذه الفكرة.</p>
-                  <div class="grid idea-expense-grid">
-                    <div class="span-2">
-                      <label for="ideaExpensePurchase">المشتريات</label>
-                      <input id="ideaExpensePurchase" type="text" placeholder="مثال: خامات تجريبية، عينات…" autocomplete="off" />
-                    </div>
-                    <div>
-                      <label for="ideaExpenseAmount">الثمن (د)</label>
-                      <input id="ideaExpenseAmount" type="number" min="0" step="0.01" placeholder="0" />
-                    </div>
-                    <div>
-                      <label for="ideaExpenseDate">التاريخ</label>
-                      <input id="ideaExpenseDate" type="date" />
-                    </div>
-                  </div>
                 </div>
               </div>
               <div class="hint" style="margin-top:8px;">
@@ -1605,6 +1630,33 @@
         <button type="button" class="nav-item" id="navSummary">ملخص المشروع</button>
         <button type="button" class="nav-item" id="navSettings">الإعدادات</button>
       </nav>
+
+      <div class="sidebar-expense-panel" id="sidebarExpensePanel" aria-labelledby="sidebarExpenseHeading">
+        <strong id="sidebarExpenseHeading" class="sidebar-expense-title">مصروفات الفكرة</strong>
+        <p class="sidebar-expense-lead">اختياري؛ تُفعَّل مع «إضافة فكرة» من خانة الأفكار (المشتريات، الثمن، التاريخ).</p>
+        <div class="sidebar-expense-fields">
+          <div class="sidebar-expense-field">
+            <label for="ideaExpensePurchase">المشتريات</label>
+            <input
+              form="ideaForm"
+              id="ideaExpensePurchase"
+              type="text"
+              placeholder="مثال: خامات، عينات…"
+              autocomplete="off"
+            />
+          </div>
+          <div class="sidebar-expense-row">
+            <div class="sidebar-expense-field">
+              <label for="ideaExpenseAmount">الثمن (د)</label>
+              <input form="ideaForm" id="ideaExpenseAmount" type="number" min="0" step="0.01" placeholder="0" />
+            </div>
+            <div class="sidebar-expense-field">
+              <label for="ideaExpenseDate">التاريخ</label>
+              <input form="ideaForm" id="ideaExpenseDate" type="date" />
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="sidebar-widget">
         <div class="sidebar-widget-row">
