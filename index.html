@@ -566,9 +566,9 @@
       align-items: center;
       gap: 8px;
       position: fixed;
-      left: 10px;
-      top: 50%;
-      transform: translateY(-50%);
+      left: max(10px, env(safe-area-inset-left, 0px));
+      top: max(12px, env(safe-area-inset-top, 0px));
+      transform: none;
       z-index: 1003;
       padding: 11px 14px;
       border-radius: 999px;
@@ -842,23 +842,11 @@
         margin-top: 22px !important;
       }
 
-      #ideasLogSection .table-wrap {
-        margin-top: 14px;
-      }
-
-      #ideasLogSection .table-wrap,
       #wasiyyatSection .table-wrap,
       #investorsSection .table-wrap {
         min-height: 100px;
         scrollbar-width: thin;
         scrollbar-color: rgba(167, 139, 250, 0.45) rgba(0, 0, 0, 0.2);
-      }
-
-      /* جداول الأفكار/الوصيات: عمود الاسم أو الوصف أوسع قليلًا على الهاتف */
-      #ideasLogSection .data-table th:nth-child(3),
-      #ideasLogSection .data-table td:nth-child(3) {
-        max-width: 200px;
-        min-width: 120px;
       }
       #wasiyyatSection .data-table th:nth-child(5),
       #wasiyyatSection .data-table td:nth-child(5) {
@@ -884,16 +872,26 @@
         background: rgba(0, 0, 0, 0.28);
         border: 1px dashed var(--stroke2);
       }
-
-      /* تواريخ الوصيات: ارتفاع حقل موحّد مع بقية النماذج */
-      #wasiyyatSection input[type="date"] {
-        min-height: 48px;
-      }
     }
 
     @media (min-width: 1025px) {
       .sidebar-backdrop { display: none !important; }
       .sidebar-edge-btn { display: none !important; }
+
+      /* شعار مشروعي ثابت أعلى يسار الشاشة (حافة العرض)، مع احتياط لمكان المعاينة جانبًا */
+      #appSidebar.app-sidebar {
+        padding-top: 114px;
+      }
+      #appSidebar .sidebar-brand {
+        position: fixed;
+        top: max(22px, env(safe-area-inset-top, 0px));
+        left: max(16px, env(safe-area-inset-left, 0px));
+        width: calc(272px - 32px);
+        max-width: calc(100vw - 32px);
+        z-index: 8;
+        margin-bottom: 0;
+        box-sizing: border-box;
+      }
     }
 
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -1109,6 +1107,96 @@
       font-variant-numeric: tabular-nums;
     }
 
+    /* سجل الأفكار — بطاقات عمودية + مصروفات */
+    #ideasLogSection .ideas-log-lead {
+      margin: -4px 0 14px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    #ideasLogSection .idea-cards {
+      margin-top: 14px;
+      min-height: 60px;
+    }
+    .idea-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .idea-log-card {
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: rgba(167, 139, 250, 0.06);
+      text-align: right;
+    }
+    .idea-log-card__head {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-bottom: 12px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+    .idea-log-card__type {
+      font-size: 12px;
+      font-weight: 600;
+      color: #ddd6fe;
+      letter-spacing: 0.02em;
+    }
+    .idea-log-card__title {
+      margin: 0;
+      font-size: 1.12rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .idea-log-card__desc {
+      margin: 0 0 14px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .idea-log-card__grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .idea-log-card__expwrap {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--stroke);
+    }
+    .idea-log-card__exptitle {
+      font-size: 12px;
+      font-weight: 700;
+      color: #c4b5fd;
+      margin-bottom: 10px;
+    }
+    .idea-log-card__expgrid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .idea-log-card .daily-sale-card__row {
+      background: rgba(0, 0, 0, 0.18);
+    }
+    #ideasSectionCard .form-section-lite {
+      margin-top: 6px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--stroke2);
+    }
+    #ideasSectionCard .idea-expense-grid {
+      margin-top: 8px;
+    }
+    #wasiyyatSection input[type="date"],
+    #ideasSectionCard input[type="date"] {
+      min-height: 48px;
+    }
+
     .wasiyyat-table-wrap {
       margin-top: 18px;
     }
@@ -1277,6 +1365,24 @@
                   <label for="ideaQty" id="ideaQtyLabel">الكمية المتوقعة</label>
                   <input id="ideaQty" type="number" min="0" step="1" placeholder="10" required />
                 </div>
+                <div class="span-2 form-section-lite">
+                  <h3 class="form-section-title">المصروفات</h3>
+                  <p class="form-section-lead">اختياري — سجل مشتريات أو تجهيزات مرتبطة بهذه الفكرة.</p>
+                  <div class="grid idea-expense-grid">
+                    <div class="span-2">
+                      <label for="ideaExpensePurchase">المشتريات</label>
+                      <input id="ideaExpensePurchase" type="text" placeholder="مثال: خامات تجريبية، عينات…" autocomplete="off" />
+                    </div>
+                    <div>
+                      <label for="ideaExpenseAmount">الثمن (د)</label>
+                      <input id="ideaExpenseAmount" type="number" min="0" step="0.01" placeholder="0" />
+                    </div>
+                    <div>
+                      <label for="ideaExpenseDate">التاريخ</label>
+                      <input id="ideaExpenseDate" type="date" />
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="hint" style="margin-top:8px;">
                 إذا ما عندكش رأس مال للفكرة، فعّل هذا الخيار لإرسالها إلى خانة المستثمرين.
@@ -1315,24 +1421,8 @@
         <div class="tables-grid hidden" id="tablesGrid">
           <div class="panel-card" id="ideasLogSection">
             <h2>سجل الأفكار</h2>
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>الاسم</th>
-                    <th>النوع</th>
-                    <th>الوصف</th>
-                    <th>رأس المال</th>
-                    <th>السعر</th>
-                    <th>الكمية</th>
-                    <th>إجمالي البيع</th>
-                    <th>الربح المتوقع</th>
-                    <th>الهامش</th>
-                  </tr>
-                </thead>
-                <tbody id="ideaRows"></tbody>
-              </table>
-            </div>
+            <p class="lead ideas-log-lead">كل فكرة في بطاقة؛ قسم المصروفات يظهر في أسفل البطاقة.</p>
+            <div class="idea-cards" id="ideaRows" aria-live="polite"></div>
             <div id="ideasEmptyState" class="empty">لا توجد أفكار بعد.</div>
           </div>
 
@@ -1546,6 +1636,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260202c"></script>
+  <script defer src="./app.js?v=20260202d"></script>
 </body>
 </html>

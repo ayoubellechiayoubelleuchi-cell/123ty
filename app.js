@@ -120,7 +120,10 @@ const dom = {
     privateNotes: document.getElementById("ideaPrivateNotes"),
     capital: document.getElementById("ideaCapital"),
     price: document.getElementById("ideaPrice"),
-    qty: document.getElementById("ideaQty")
+    qty: document.getElementById("ideaQty"),
+    expensePurchase: document.getElementById("ideaExpensePurchase"),
+    expenseAmount: document.getElementById("ideaExpenseAmount"),
+    expenseDate: document.getElementById("ideaExpenseDate")
   },
   ideaTotals: {
     expectedSalesEl: document.getElementById("ideaExpectedSales"),
@@ -963,6 +966,8 @@ function computeIdea(base) {
   const qty = Number(base.qty) || 0;
   const expectedSales = price * qty;
   const expectedProfit = expectedSales - capital;
+  const expenseAmountRaw = Number(base.expenseAmount);
+  const expenseAmount = Number.isFinite(expenseAmountRaw) && expenseAmountRaw > 0 ? expenseAmountRaw : 0;
   const ideaType = base.ideaType === "service" ? "service" : "product";
   return {
     ideaId: newRecordId(),
@@ -973,6 +978,9 @@ function computeIdea(base) {
     capital,
     price,
     qty,
+    expensePurchase: String(base.expensePurchase || "").trim(),
+    expenseAmount,
+    expenseDate: String(base.expenseDate || "").trim(),
     expectedSales,
     expectedProfit
   };
@@ -1160,24 +1168,41 @@ function syncIdeaTypeUi() {
 }
 
 function renderIdeas() {
+  if (!dom.ideaRowsContainer) return;
   dom.ideaRowsContainer.innerHTML = "";
   for (const idea of state.ideas) {
     const sales = Number(idea.expectedSales) || 0;
     const profit = Number(idea.expectedProfit) || 0;
     const marginPct = sales > 0 ? Math.round((profit / sales) * 100) : 0;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(String(idea.name || ""))}</td>
-      <td>${escapeHtml(ideaTypeLabel(idea))}</td>
-      <td>${escapeHtml(String(idea.description || ""))}</td>
-      <td>${currency(Number(idea.capital) || 0)}</td>
-      <td>${currency(Number(idea.price) || 0)}</td>
-      <td>${Number(idea.qty) || 0}</td>
-      <td>${currency(sales)}</td>
-      <td>${currency(profit)}</td>
-      <td>${marginPct}%</td>
-    `;
-    dom.ideaRowsContainer.appendChild(tr);
+    const expensePurchase = String(idea.expensePurchase || "").trim();
+    const expenseAmount = Number(idea.expenseAmount) || 0;
+    const expenseDate = String(idea.expenseDate || "").trim();
+    const desc = String(idea.description || "").trim();
+    const article = document.createElement("article");
+    article.className = "idea-log-card";
+    article.innerHTML = `
+      <header class="idea-log-card__head">
+        <span class="idea-log-card__type">${escapeHtml(ideaTypeLabel(idea))}</span>
+        <h3 class="idea-log-card__title">${escapeHtml(String(idea.name || ""))}</h3>
+      </header>
+      ${desc ? `<p class="idea-log-card__desc">${escapeHtml(desc)}</p>` : ""}
+      <div class="idea-log-card__grid">
+        ${dailyKvMoney("رأس المال", currency(Number(idea.capital) || 0))}
+        ${dailyKvMoney("السعر", currency(Number(idea.price) || 0))}
+        ${dailyKvRow("الكمية", escapeHtml(String(Number(idea.qty) || 0)))}
+        ${dailyKvMoney("إجمالي البيع", currency(sales))}
+        ${dailyKvMoney("الربح المتوقع", currency(profit))}
+        ${dailyKvRow("الهامش", escapeHtml(`${marginPct}%`))}
+      </div>
+      <div class="idea-log-card__expwrap">
+        <div class="idea-log-card__exptitle">المصروفات</div>
+        <div class="idea-log-card__expgrid">
+          ${dailyKvRow("المشتريات", escapeHtml(expensePurchase || "—"))}
+          ${dailyKvMoney("الثمن", expenseAmount > 0 ? currency(expenseAmount) : "—")}
+          ${dailyKvRow("التاريخ", escapeHtml(expenseDate || "—"))}
+        </div>
+      </div>`;
+    dom.ideaRowsContainer.appendChild(article);
   }
   dom.ideasEmptyState.style.display = state.ideas.length === 0 ? "block" : "none";
   renderInsights();
@@ -1767,6 +1792,9 @@ function init() {
     if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
     const ideaType =
       dom.ideaTypeService?.checked ? "service" : dom.ideaTypeProduct?.checked ? "product" : "product";
+    const expAmtRaw = Number(dom.ideaFields.expenseAmount?.value);
+    const expAmt =
+      dom.ideaFields.expenseAmount?.value.trim() === "" || Number.isNaN(expAmtRaw) ? 0 : expAmtRaw;
     const base = {
       name: dom.ideaFields.name.value.trim(),
       description: dom.ideaFields.description.value.trim(),
@@ -1774,11 +1802,15 @@ function init() {
       ideaType,
       capital: Number(dom.ideaFields.capital.value),
       price: Number(dom.ideaFields.price.value),
-      qty: Number(dom.ideaFields.qty.value)
+      qty: Number(dom.ideaFields.qty.value),
+      expensePurchase: dom.ideaFields.expensePurchase?.value.trim() || "",
+      expenseAmount: expAmt,
+      expenseDate: dom.ideaFields.expenseDate?.value.trim() || ""
     };
     if (!base.name || !base.description || base.capital < 0 || Number.isNaN(base.capital) || base.price < 0 || Number.isNaN(base.price) || base.qty < 0 || Number.isNaN(base.qty)) {
       return;
     }
+    if (expAmt < 0 || Number.isNaN(expAmt)) return alert("أدخل ثمنًا صحيحًا للمصروف أو اتركه فارغًا.");
     const idea = computeIdea(base);
     const shouldSendToInvestors = !!dom.sendToInvestors?.checked || base.capital <= 0;
     if (shouldSendToInvestors) {
