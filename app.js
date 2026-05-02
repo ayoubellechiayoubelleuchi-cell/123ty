@@ -850,12 +850,14 @@ function normalizeRecordsStep1(list) {
 
 function normalizeRecordsStep2(list) {
   return list.map((r) => {
+    const ridRaw = r.recordId != null && String(r.recordId).trim() !== "" ? r.recordId : r.record_id;
     const out = {
       ...r,
       unpaidAmount: clampUnpaid(r.totalSale, r.unpaidAmount ?? r.unpaid),
       debtCleared: !!r.debtCleared,
       debtClearedAt: r.debtClearedAt || null
     };
+    if (ridRaw != null && String(ridRaw).trim() !== "") out.recordId = String(ridRaw).trim();
     hydrateOriginalDebtSnap(out);
     return out;
   });
@@ -871,8 +873,16 @@ function hydrateOriginalDebtSnap(r) {
   else r.originalDebtAtSale = snap;
 }
 
+function recordCanonicalId(r) {
+  if (!r) return "";
+  const a = r.recordId != null ? String(r.recordId).trim() : "";
+  if (a) return a;
+  const b = r.record_id != null ? String(r.record_id).trim() : "";
+  return b;
+}
+
 function hasStableRecordId(r) {
-  return r && r.recordId != null && String(r.recordId).trim() !== "";
+  return recordCanonicalId(r) !== "";
 }
 
 /** بصمة تقليلية لتفادي تكرار نفس العملية عند دمج قوائم بلا recordId */
@@ -888,7 +898,7 @@ function businessFingerprint(record) {
 }
 
 function mergeKeyForRecord(record) {
-  return hasStableRecordId(record) ? `id:${String(record.recordId).trim()}` : `fp:${businessFingerprint(record)}`;
+  return hasStableRecordId(record) ? `id:${recordCanonicalId(record)}` : `fp:${businessFingerprint(record)}`;
 }
 
 /**
@@ -907,9 +917,12 @@ function mergeSalesListsLocalRemote(remotes, locals) {
       map.set(k, { ...r });
       continue;
     }
-    const rid =
-      hasStableRecordId(r) ? r.recordId : hasStableRecordId(prev) ? prev.recordId : prev.recordId || r.recordId;
-    map.set(k, { ...prev, ...r, recordId: rid });
+    let rid =
+      recordCanonicalId(r) ||
+      recordCanonicalId(prev) ||
+      String(prev.recordId ?? r.recordId ?? "")
+        .trim();
+    map.set(k, { ...prev, ...r, recordId: rid || prev.recordId || r.recordId });
   }
   return [...map.values()];
 }
@@ -1367,6 +1380,11 @@ async function deleteRecordRemote(recordId) {
 function ensureAllSalesRecordsHaveIds() {
   let changed = false;
   for (const r of state.records) {
+    const c = recordCanonicalId(r);
+    if (c && r.recordId !== c) {
+      r.recordId = c;
+      changed = true;
+    }
     if (!r.recordId || String(r.recordId).trim() === "") {
       r.recordId = newRecordId();
       changed = true;
@@ -1386,7 +1404,7 @@ function computeRecord(base, existingRecordId) {
 
   let prev = null;
   if (existingRecordId != null && String(existingRecordId).trim() !== "") {
-    prev = state.records.find((r) => String(r.recordId) === String(existingRecordId).trim());
+    prev = state.records.find((r) => recordCanonicalId(r) === String(existingRecordId).trim());
   }
   const prevSnap = prev != null ? clampUnpaid(totalSale, Number(prev.originalDebtAtSale) || 0) : 0;
   const prevOpenUnpaid = prev != null ? clampUnpaid(totalSale, prev.unpaidAmount ?? prev.unpaid ?? 0) : 0;
@@ -1501,7 +1519,7 @@ function renderDebtCell(record) {
   }
   const u = originalUnpaid(record);
   if (u <= 0) return `<span style="font-size:12px;color:var(--muted)">لا يوجد آجل مسجّل</span>`;
-  return `<button type="button" class="btn-ghost-light btn-small" data-debt-paid="${escapeHtml(String(record.recordId || ""))}">تسجيل دفع الدين</button>`;
+  return `<button type="button" class="btn-ghost-light btn-small" data-debt-paid="${escapeHtml(recordCanonicalId(record))}">تسجيل دفع الدين</button>`;
 }
 
 /** صف في بطاقة سجل اليوم؛ القيمة نص/HTML آمن وفق المتصل */
@@ -1526,6 +1544,8 @@ function render() {
   let saleIdsBackfilled = false;
 
   for (const record of state.records) {
+    const cid = recordCanonicalId(record);
+    if (cid) record.recordId = cid;
     if (!record.recordId || String(record.recordId).trim() === "") {
       record.recordId = newRecordId();
       saleIdsBackfilled = true;
@@ -1569,8 +1589,8 @@ function render() {
         <div class="daily-sale-card__debtactions">${renderDebtCell(record)}</div>
       </div>
       <div class="daily-sale-card__editrow">
-        <button type="button" class="btn-ghost-light btn-small" data-sale-edit="${escapeHtml(String(record.recordId || ""))}">تعديل</button>
-        <button type="button" class="btn-ghost-light btn-small" data-sale-delete="${escapeHtml(String(record.recordId || ""))}" style="color:var(--danger)">حذف</button>
+        <button type="button" class="btn-ghost-light btn-small" data-sale-edit="${escapeHtml(recordCanonicalId(record))}">تعديل</button>
+        <button type="button" class="btn-ghost-light btn-small" data-sale-delete="${escapeHtml(recordCanonicalId(record))}" style="color:var(--danger)">حذف</button>
       </div>`;
     dom.rowsContainer.appendChild(article);
   }
@@ -2238,10 +2258,11 @@ function init() {
   });
 
   dom.rowsContainer.addEventListener("click", async (event) => {
-    const editBtn = event.target.closest("[data-sale-edit]");
+    const clickRoot = event.target instanceof Element ? event.target : event.target?.parentElement;
+    const editBtn = clickRoot?.closest("[data-sale-edit]");
     if (editBtn && state.currentUser) {
       const id = editBtn.getAttribute("data-sale-edit");
-      const rec = state.records.find((r) => String(r.recordId) === id);
+      const rec = state.records.find((r) => recordCanonicalId(r) === String(id || "").trim());
       if (!rec) return;
       state.editingSaleRecordId = id;
       applyRecordToSaleForm(rec);
@@ -2258,10 +2279,10 @@ function init() {
       return;
     }
 
-    const delBtn = event.target.closest("[data-sale-delete]");
+    const delBtn = clickRoot?.closest("[data-sale-delete]");
     if (delBtn && state.currentUser) {
       const id = delBtn.getAttribute("data-sale-delete");
-      const idx = state.records.findIndex((r) => String(r.recordId) === id);
+      const idx = state.records.findIndex((r) => recordCanonicalId(r) === String(id || "").trim());
       if (idx < 0 || !id) return;
       if (!confirm("حذف هذه العملية من سجل الأيام؟ سُحذف من الجهاز ومن السحابة إن وُجدت مزامنة.")) return;
       const removed = state.records[idx];
@@ -2289,9 +2310,10 @@ function init() {
       return;
     }
 
-    const btn = event.target.closest("[data-debt-paid]");
+    const btn = clickRoot?.closest("[data-debt-paid]");
     if (!btn || !state.currentUser) return;
-    const rec = state.records.find((r) => String(r.recordId) === btn.getAttribute("data-debt-paid"));
+    const paidId = String(btn.getAttribute("data-debt-paid") || "").trim();
+    const rec = state.records.find((r) => recordCanonicalId(r) === paidId);
     if (!rec || rec.debtCleared || remainingUnpaid(rec) <= 0) return;
     if (!confirm("تأكيد أن الزبون سدّى كامل الآجل المسجّل لهذا السطر؟")) return;
     log("info", "debt_mark_paid", { recordId: rec.recordId });
@@ -2353,7 +2375,7 @@ function init() {
       const newRecord = computeRecord(base, editingId);
       const wasEditing = !!editingId;
       if (wasEditing) {
-        const idx = state.records.findIndex((r) => String(r.recordId) === String(editingId));
+        const idx = state.records.findIndex((r) => recordCanonicalId(r) === String(editingId));
         if (idx < 0) {
           setSyncStatus("تعذر العثور على السجل المراد تعديله.", false);
           return;
