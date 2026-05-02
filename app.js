@@ -601,7 +601,8 @@ async function activateAppForUser(user, statusSuffix = "") {
   setAuthStatus(`تم تسجيل الدخول: ${state.currentUser.phone || state.currentUser.id}${statusSuffix}`, true);
 
   try {
-    const local = loadRecords();
+    const localLoad = loadSalesFromAllLocalSnapshots();
+    const local = localLoad.list;
     state.ideas = loadIdeas();
     state.expenses = loadExpenses();
     state.investors = loadInvestors();
@@ -610,6 +611,7 @@ async function activateAppForUser(user, statusSuffix = "") {
     let remote = await loadRecordsFromRemote();
     authTrace("activate_app:data_loaded", {
       localCount: local.length,
+      localSalvageSources: localLoad.sources,
       remoteCount: remote.length,
       ideasCount: state.ideas.length,
       investorsCount: state.investors.length,
@@ -644,6 +646,12 @@ async function activateAppForUser(user, statusSuffix = "") {
       await upsertManyRemote(state.records);
     }
     saveRecords();
+    if (!isSalesClearPending() && localLoad.sources >= 2 && state.records.length > 0) {
+      setSyncStatus(
+        `تم ضم ${localLoad.sources} نسَخًا محليًا؛ عندك الآن ${state.records.length} عملية في سجل البيع — راجع الأرقام ثم أكمل استخدامًا عاديًا.`,
+        true
+      );
+    }
     render();
     renderIdeas();
     renderExpenses();
@@ -849,35 +857,81 @@ function userRecoverSalesKey() {
   return state.currentUser ? `${userStorageKey()}:recover-snapshot` : "";
 }
 
+/** يعتبر المحتوى قائمة عمليات يومية قابلة للدمج إن كان هيكلًا معروفًا */
+function arrayLooksLikeDailySalesRecords(list) {
+  if (!Array.isArray(list) || list.length === 0) return false;
+  let hits = 0;
+  const sample = list.slice(0, 40);
+  for (const row of sample) {
+    if (!row || typeof row !== "object") continue;
+    if ("totalSale" in row || "qty" in row) hits++;
+    if ("product" in row || "description" in row) hits++;
+  }
+  return hits >= Math.min(sample.length * 2, 4);
+}
+
+/**
+ * تجمع كل نسَخ المبيعات المحفوظة تحت مفتاح STORAGE_KEY وأبنائه (طوارئ، نسخة احتياط، لقطة مستخدم…)
+ * لتفادي الاعتماد على مكان واحد فقط بعد أي كتابة خاطئة سابقة إلى [].
+ */
+function loadSalesFromAllLocalSnapshots() {
+  const chunks = [];
+  const scannedKeys = new Set();
+
+  function pushChunkFromRaw(raw, keyLabel) {
+    if (!raw) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    const arr = Array.isArray(parsed) ? parsed : [];
+    if (!arrayLooksLikeDailySalesRecords(arr)) return;
+    const list = normalizeRecordsStep2(normalizeRecordsStep1(arr));
+    if (list.length === 0) return;
+    chunks.push({ list, key: keyLabel });
+  }
+
+  /** ترتيب مفضل أولًا، ثم مسح شامل لجميع المفاتيح ذات البادئة */
+  const prioritized = [...new Set([userRecoverSalesKey(), userStorageKey(), backupStorageKey(), STORAGE_KEY, emergencyRecordsKey()].filter(Boolean))];
+  for (const k of prioritized) {
+    if (!k) continue;
+    scannedKeys.add(k);
+    pushChunkFromRaw(localStorage.getItem(k), k);
+  }
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || scannedKeys.has(key)) continue;
+      if (key !== STORAGE_KEY && !key.startsWith(`${STORAGE_KEY}:`)) continue;
+      scannedKeys.add(key);
+      pushChunkFromRaw(localStorage.getItem(key), key);
+    }
+  } catch (err) {
+    log("warn", "local_storage_scan_sales_keys_failed", String(err?.message || err));
+  }
+
+  if (chunks.length === 0) return { list: [], sources: 0 };
+
+  chunks.sort((a, b) => b.list.length - a.list.length);
+  let acc = [];
+  const keyTrail = [];
+  for (const { list, key } of chunks) {
+    acc = mergeSalesListsLocalRemote(acc, list);
+    keyTrail.push(key);
+  }
+
+  log("info", "local_load_merged", { sources: chunks.length, count: acc.length, keysSample: keyTrail.slice(0, 8) });
+  return { list: acc, sources: chunks.length };
+}
+
 function loadRecords() {
   try {
-    const keyOrderUnique = [...new Set([userRecoverSalesKey(), userStorageKey(), backupStorageKey(), STORAGE_KEY, emergencyRecordsKey()].filter(Boolean))];
-
-    const chunks = [];
-    for (const storageKey of keyOrderUnique) {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) continue;
-      let parsed;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        continue;
-      }
-      const list = normalizeRecordsStep2(normalizeRecordsStep1(Array.isArray(parsed) ? parsed : []));
-      if (list.length > 0) chunks.push(list);
-    }
-
-    if (chunks.length === 0) {
-      log("info", "local_load", { key: userStorageKey(), count: 0 });
-      return [];
-    }
-
-    chunks.sort((a, b) => b.length - a.length);
-    let acc = [];
-    for (const chunk of chunks) acc = mergeSalesListsLocalRemote(acc, chunk);
-
-    log("info", "local_load_merged", { sources: chunks.length, count: acc.length });
-    return acc;
+    const { list, sources } = loadSalesFromAllLocalSnapshots();
+    if (list.length === 0) log("info", "local_load", { key: userStorageKey(), scannedSources: sources, count: 0 });
+    return list;
   } catch {
     log("warn", "local_load_failed", { key: userStorageKey() });
     return [];
@@ -888,13 +942,27 @@ function saveRecords(options = {}) {
   const { allowEmptyBackup = false } = options;
   const payload = JSON.stringify(state.records);
   localStorage.setItem(userStorageKey(), payload);
-  localStorage.setItem(emergencyRecordsKey(), payload);
-  if (state.records.length > 0 || allowEmptyBackup) {
-    localStorage.setItem(backupStorageKey(), payload);
-  }
   const recoverK = userRecoverSalesKey();
-  if (recoverK && state.records.length > 0) localStorage.setItem(recoverK, payload);
-  log("info", "local_save", { key: userStorageKey(), count: state.records.length });
+
+  if (state.records.length > 0) {
+    /** القائمة غير فارغة: تحديث كل مخازن السلامة */
+    localStorage.setItem(emergencyRecordsKey(), payload);
+    localStorage.setItem(backupStorageKey(), payload);
+    if (recoverK) localStorage.setItem(recoverK, payload);
+  } else if (allowEmptyBackup) {
+    /** مسح مقصود فقط عبر أزرار الإعدادات */
+    localStorage.setItem(emergencyRecordsKey(), payload);
+    localStorage.setItem(backupStorageKey(), payload);
+    if (recoverK) localStorage.removeItem(recoverK);
+  }
+  /** إن كانت [] من غير allowEmptyBackup: لا نمسح الطوارئ/النسخ الاحتياطي — قد تبقي آخر قائمة جيّدة */
+
+  log("info", "local_save", {
+    key: userStorageKey(),
+    count: state.records.length,
+    touchedSafetyStores: state.records.length > 0 || allowEmptyBackup,
+    intentionalEmpty: allowEmptyBackup && state.records.length === 0
+  });
 }
 
 function loadIdeas() {
