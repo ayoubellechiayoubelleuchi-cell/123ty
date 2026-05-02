@@ -6,6 +6,7 @@
 const STORAGE_KEY = "daily-sales-log-v1";
 const IDEAS_STORAGE_KEY = "project-ideas-v1";
 const INVESTORS_STORAGE_KEY = "investors-ideas-v1";
+const WASIYYAT_STORAGE_KEY = "wasiyyat-log-v1";
 const DELETION_LOG_KEY = "deletion-log-v1";
 const SUPABASE_PROJECT_ID = "navqvljmipzheqjmlzgt";
 const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
@@ -49,11 +50,14 @@ const dom = {
   rowsContainer: document.getElementById("rows"),
   ideaRowsContainer: document.getElementById("ideaRows"),
   investorRowsContainer: document.getElementById("investorRows"),
+  wasiyyatForm: document.getElementById("wasiyyatForm"),
+  wasiyyatRowsContainer: document.getElementById("wasiyyatRows"),
   emptyState: document.getElementById("emptyState"),
   dailySalesSummary: document.getElementById("dailySalesSummary"),
   monthlyProfitSummary: document.getElementById("monthlyProfitSummary"),
   ideasEmptyState: document.getElementById("ideasEmptyState"),
   investorsEmptyState: document.getElementById("investorsEmptyState"),
+  wasiyyatEmptyState: document.getElementById("wasiyyatEmptyState"),
   resetBtn: document.getElementById("resetData"),
   resetIdeasBtn: document.getElementById("resetIdeas"),
   addIdeaToInvestorsBtn: document.getElementById("addIdeaToInvestorsBtn"),
@@ -79,6 +83,7 @@ const dom = {
   navDailyLog: document.getElementById("navDailyLog"),
   navIdeasForm: document.getElementById("navIdeasForm"),
   navInvestors: document.getElementById("navInvestors"),
+  navWasiyyat: document.getElementById("navWasiyyat"),
   navSummary: document.getElementById("navSummary"),
   navReports: document.getElementById("navReports"),
   navSettings: document.getElementById("navSettings"),
@@ -87,6 +92,7 @@ const dom = {
   dailyLogSection: document.getElementById("dailyLogSection"),
   ideasLogSection: document.getElementById("ideasLogSection"),
   investorsSection: document.getElementById("investorsSection"),
+  wasiyyatSection: document.getElementById("wasiyyatSection"),
   projectSummarySection: document.getElementById("projectSummarySection"),
   settingsPageSection: document.getElementById("settingsPageSection"),
   reportsSection: document.getElementById("reportsSection"),
@@ -124,6 +130,14 @@ const dom = {
   ideaTypeService: document.getElementById("ideaTypeService"),
   sendToInvestors: document.getElementById("sendToInvestors"),
   ideaInvestorPhone: document.getElementById("ideaInvestorPhone"),
+  wasiyyatFields: {
+    capital: document.getElementById("wasiyyatCapital"),
+    price: document.getElementById("wasiyyatPrice"),
+    saleDate: document.getElementById("wasiyyatSaleDate"),
+    completionDate: document.getElementById("wasiyyatCompletionDate"),
+    personName: document.getElementById("wasiyyatPersonName"),
+    phone: document.getElementById("wasiyyatPhone")
+  },
   ideaTypeHint: document.getElementById("ideaTypeHint"),
   ideaPriceLabel: document.getElementById("ideaPriceLabel"),
   ideaQtyLabel: document.getElementById("ideaQtyLabel"),
@@ -151,6 +165,7 @@ const state = {
   records: [],
   ideas: [],
   investors: [],
+  wasiyyat: [],
   deletionLog: [],
   authBusy: false,
   authEventsBound: false
@@ -378,11 +393,15 @@ function forceShowApp() {
 
 function setAppEnabled(enabled) {
   for (const el of dom.form.querySelectorAll("input, textarea, button")) el.disabled = !enabled;
+  if (dom.wasiyyatForm) {
+    for (const el of dom.wasiyyatForm.querySelectorAll("input, textarea, button")) el.disabled = !enabled;
+  }
   for (const btn of dom.rowsContainer.querySelectorAll("button[data-debt-paid]")) btn.disabled = !enabled;
+  for (const btn of dom.wasiyyatRowsContainer?.querySelectorAll("button[data-wasiyyat-delete]") ?? []) btn.disabled = !enabled;
   dom.resetBtn.disabled = !enabled;
 }
 
-const SIDEBAR_NAV_IDS = ["navProjectHome", "navSales", "navDailyLog", "navIdeasForm", "navInvestors", "navSummary", "navSettings"];
+const SIDEBAR_NAV_IDS = ["navProjectHome", "navSales", "navDailyLog", "navIdeasForm", "navWasiyyat", "navInvestors", "navSummary", "navSettings"];
 
 function setSidebarNavActive(activeId) {
   for (const id of SIDEBAR_NAV_IDS) {
@@ -456,6 +475,7 @@ function setActiveSection(section) {
   dom.projectSummarySection?.classList.add("hidden");
   dom.settingsPageSection?.classList.add("hidden");
   dom.investorsSection?.classList.add("hidden");
+  dom.wasiyyatSection?.classList.add("hidden");
 
   setSidebarNavActive(isSales ? "navSales" : "navIdeasForm");
 }
@@ -475,11 +495,13 @@ function setMainView(view) {
   dom.projectSummarySection?.classList.toggle("hidden", view !== "summary");
   dom.settingsPageSection?.classList.toggle("hidden", view !== "settings");
   dom.investorsSection?.classList.toggle("hidden", view !== "investors");
+  dom.wasiyyatSection?.classList.toggle("hidden", view !== "wasiyyat");
 
   if (view === "daily") setSidebarNavActive("navDailyLog");
   else if (view === "summary") setSidebarNavActive("navSummary");
   else if (view === "settings") setSidebarNavActive("navSettings");
   else if (view === "investors") setSidebarNavActive("navInvestors");
+  else if (view === "wasiyyat") setSidebarNavActive("navWasiyyat");
 }
 
 function applySignedOutState(message = "تم تسجيل الخروج.") {
@@ -487,10 +509,12 @@ function applySignedOutState(message = "تم تسجيل الخروج.") {
   state.records = [];
   state.ideas = [];
   state.investors = [];
+  state.wasiyyat = [];
   state.deletionLog = [];
   render();
   renderIdeas();
   renderInvestors();
+  renderWasiyyat();
   renderDeletionLog();
   setPageMode(false);
   setAppEnabled(false);
@@ -512,10 +536,28 @@ async function activateAppForUser(user, statusSuffix = "") {
     const local = loadRecords();
     state.ideas = loadIdeas();
     state.investors = loadInvestors();
+    state.wasiyyat = loadWasiyyat();
     state.deletionLog = loadDeletionLog();
-    const remote = await loadRecordsFromRemote();
-    authTrace("activate_app:data_loaded", { localCount: local.length, remoteCount: remote.length, ideasCount: state.ideas.length, investorsCount: state.investors.length });
-    if (remote.length === 0 && local.length > 0) {
+    let remote = await loadRecordsFromRemote();
+    authTrace("activate_app:data_loaded", {
+      localCount: local.length,
+      remoteCount: remote.length,
+      ideasCount: state.ideas.length,
+      investorsCount: state.investors.length,
+      salesClearPending: isSalesClearPending()
+    });
+
+    /* عند الطلب المحلي بالمسح: لا نعيد سحب نسخة Supabase القديمة فوق القائمة الفارغة */
+    if (isSalesClearPending()) {
+      if (remote.length > 0 && state.db) {
+        await deleteAllRemote();
+        remote = await loadRecordsFromRemote();
+      }
+      state.records = [];
+      authTrace("activate_app:honor_sales_clear_pending", { remoteCountAfter: remote.length });
+      if (remote.length === 0) setSalesClearPending(false);
+      else setSyncStatus("محذوف محليًا؛ تعذّر تأكيد المسح على السحابة — جارِ إعادة المحاولة تلقائيًا.", false);
+    } else if (remote.length === 0 && local.length > 0) {
       await upsertManyRemote(local);
       state.records = local;
       authTrace("activate_app:using_local_and_uploaded", { count: local.length });
@@ -527,6 +569,7 @@ async function activateAppForUser(user, statusSuffix = "") {
     render();
     renderIdeas();
     renderInvestors();
+    renderWasiyyat();
     renderDeletionLog();
     renderIdeasPreview();
     authTrace("activate_app:ui_synced", { records: state.records.length });
@@ -535,6 +578,8 @@ async function activateAppForUser(user, statusSuffix = "") {
     // Keep user inside app even if sync fails.
     render();
     renderIdeas();
+    renderInvestors();
+    renderWasiyyat();
     renderIdeasPreview();
     setSyncStatus(`تعذر مزامنة بعض البيانات: ${err?.message || "خطأ غير معروف"}`, false);
   }
@@ -557,6 +602,23 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function salesClearPendingStorageKey(userIdOverride) {
+  const uid = userIdOverride ?? state.currentUser?.id ?? "";
+  return uid ? `${STORAGE_KEY}:pending-remote-clear:${uid}` : "";
+}
+
+function isSalesClearPending(userIdOverride) {
+  const k = salesClearPendingStorageKey(userIdOverride);
+  return k ? localStorage.getItem(k) === "1" : false;
+}
+
+function setSalesClearPending(on, userIdOverride) {
+  const k = salesClearPendingStorageKey(userIdOverride ?? state.currentUser?.id ?? "");
+  if (!k) return;
+  if (on) localStorage.setItem(k, "1");
+  else localStorage.removeItem(k);
+}
+
 function userStorageKey() {
   return state.currentUser ? `${STORAGE_KEY}:${state.currentUser.id}` : STORAGE_KEY;
 }
@@ -567,6 +629,10 @@ function userIdeasStorageKey() {
 
 function userInvestorsStorageKey() {
   return state.currentUser ? `${INVESTORS_STORAGE_KEY}:${state.currentUser.id}` : INVESTORS_STORAGE_KEY;
+}
+
+function userWasiyyatStorageKey() {
+  return state.currentUser ? `${WASIYYAT_STORAGE_KEY}:${state.currentUser.id}` : WASIYYAT_STORAGE_KEY;
 }
 
 function backupStorageKey() {
@@ -581,6 +647,10 @@ function backupInvestorsStorageKey() {
   return `${INVESTORS_STORAGE_KEY}:backup`;
 }
 
+function backupWasiyyatStorageKey() {
+  return `${WASIYYAT_STORAGE_KEY}:backup`;
+}
+
 function emergencyRecordsKey() {
   return `${STORAGE_KEY}:emergency`;
 }
@@ -591,6 +661,10 @@ function emergencyIdeasKey() {
 
 function emergencyInvestorsKey() {
   return `${INVESTORS_STORAGE_KEY}:emergency`;
+}
+
+function emergencyWasiyyatKey() {
+  return `${WASIYYAT_STORAGE_KEY}:emergency`;
 }
 
 function userDeletionLogKey() {
@@ -715,6 +789,33 @@ function saveInvestors(options = {}) {
     localStorage.setItem(backupInvestorsStorageKey(), payload);
   }
   log("info", "investors_local_save", { key: userInvestorsStorageKey(), count: state.investors.length });
+}
+
+function loadWasiyyat() {
+  try {
+    let raw = localStorage.getItem(userWasiyyatStorageKey());
+    if (!raw) raw = localStorage.getItem(backupWasiyyatStorageKey());
+    if (!raw) raw = localStorage.getItem(WASIYYAT_STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(emergencyWasiyyatKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    const list = Array.isArray(parsed) ? parsed : [];
+    log("info", "wasiyyat_local_load", { key: userWasiyyatStorageKey(), count: list.length });
+    return list;
+  } catch {
+    log("warn", "wasiyyat_local_load_failed", { key: userWasiyyatStorageKey() });
+    return [];
+  }
+}
+
+function saveWasiyyat(options = {}) {
+  const { allowEmptyBackup = false } = options;
+  const payload = JSON.stringify(state.wasiyyat);
+  localStorage.setItem(userWasiyyatStorageKey(), payload);
+  localStorage.setItem(emergencyWasiyyatKey(), payload);
+  if (state.wasiyyat.length > 0 || allowEmptyBackup) {
+    localStorage.setItem(backupWasiyyatStorageKey(), payload);
+  }
+  log("info", "wasiyyat_local_save", { key: userWasiyyatStorageKey(), count: state.wasiyyat.length });
 }
 
 function loadDeletionLog() {
@@ -1039,6 +1140,27 @@ function renderIdeas() {
   renderInsights();
 }
 
+function renderWasiyyat() {
+  if (!dom.wasiyyatRowsContainer || !dom.wasiyyatEmptyState) return;
+  dom.wasiyyatRowsContainer.innerHTML = "";
+  for (const row of state.wasiyyat) {
+    const completion = row.completionDate && String(row.completionDate).trim() ? escapeHtml(String(row.completionDate)) : "—";
+    const tr = document.createElement("tr");
+    const idEsc = escapeHtml(String(row.wasiyyatId || ""));
+    tr.innerHTML = `
+      <td>${currency(Number(row.capital) || 0)}</td>
+      <td>${currency(Number(row.productPrice) || 0)}</td>
+      <td>${escapeHtml(String(row.saleDate || ""))}</td>
+      <td>${completion}</td>
+      <td>${escapeHtml(String(row.personName || ""))}</td>
+      <td>${row.phone ? escapeHtml(String(row.phone)) : "—"}</td>
+      <td><button type="button" class="btn-ghost-light btn-small" data-wasiyyat-delete="${idEsc}" style="color:var(--danger)">حذف</button></td>
+    `;
+    dom.wasiyyatRowsContainer.appendChild(tr);
+  }
+  dom.wasiyyatEmptyState.style.display = state.wasiyyat.length === 0 ? "block" : "none";
+}
+
 function renderInvestors() {
   if (!dom.investorRowsContainer || !dom.investorsEmptyState) return;
   dom.investorRowsContainer.innerHTML = "";
@@ -1181,8 +1303,10 @@ async function refreshSessionState() {
     authTrace("refresh_session:no_user", {});
     state.records = [];
     state.ideas = [];
+    state.wasiyyat = [];
     render();
     renderIdeas();
+    renderWasiyyat();
     setPageMode(false);
     setAppEnabled(false);
     setAuthStatus("أدخل Gmail وكلمة المرور ثم اضغط دخول.", false);
@@ -1389,6 +1513,11 @@ function init() {
     scrollToPanel(dom.workspaceTop);
     closeSidebarDrawerIfMobile();
   });
+  dom.navWasiyyat?.addEventListener("click", () => {
+    setMainView("wasiyyat");
+    scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  });
   dom.navInvestors?.addEventListener("click", () => {
     setMainView("investors");
     scrollToPanel(dom.workspaceTop);
@@ -1508,6 +1637,54 @@ function init() {
     dom.ideaForm?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
 
+  dom.wasiyyatForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
+    const f = dom.wasiyyatFields;
+    if (!f.capital || !f.price || !f.saleDate || !f.personName || !f.phone) return;
+    const capital = Number(f.capital.value);
+    const productPrice = Number(f.price.value);
+    const saleDate = String(f.saleDate.value || "").trim();
+    const completionRaw = String(f.completionDate?.value || "").trim();
+    const personName = String(f.personName.value || "").trim();
+    const phoneRaw = String(f.phone.value || "").trim();
+    if (Number.isNaN(capital) || capital < 0) return alert("أدخل رأس مال صالحًا.");
+    if (Number.isNaN(productPrice) || productPrice < 0) return alert("أدخل ثمن المنتج صالحًا.");
+    if (!saleDate) return alert("اختر تاريخ البيع.");
+    if (!personName) return alert("أدخل اسم الشخص.");
+    if (!isValidInvestorPhone(phoneRaw)) {
+      alert("أدخل رقم هاتف صالحًا (8 إلى 15 رقمًا).");
+      f.phone.focus();
+      return;
+    }
+    state.wasiyyat.unshift({
+      wasiyyatId: newRecordId(),
+      capital,
+      productPrice,
+      saleDate,
+      completionDate: completionRaw || null,
+      personName,
+      phone: phoneRaw
+    });
+    saveWasiyyat();
+    renderWasiyyat();
+    dom.wasiyyatForm.reset();
+    setSyncStatus("تمت إضافة سجل الوصية.", true);
+  });
+
+  dom.wasiyyatRowsContainer?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-wasiyyat-delete]");
+    if (!btn || !state.currentUser) return;
+    const id = btn.getAttribute("data-wasiyyat-delete");
+    const idx = state.wasiyyat.findIndex((w) => String(w.wasiyyatId) === id);
+    if (idx < 0) return;
+    if (!confirm("حذف هذا السطر من خانة الوصيات؟")) return;
+    state.wasiyyat.splice(idx, 1);
+    saveWasiyyat();
+    renderWasiyyat();
+    setSyncStatus("تم حذف سجل الوصية.", true);
+  });
+
   dom.ideaForm.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
@@ -1558,7 +1735,7 @@ function init() {
     renderIdeasPreview();
   });
 
-  dom.resetIdeasBtn.addEventListener("click", () => {
+  dom.resetIdeasBtn?.addEventListener("click", () => {
     if (!state.currentUser) return;
     if (!confirm("هل أنت متأكد من حذف كل الأفكار؟")) return;
     const deletedCount = state.ideas.length;
@@ -1579,16 +1756,30 @@ function init() {
     addDeletionLog(`تم حذف خانة المستثمرين (${deletedCount})`);
   });
 
-  dom.resetBtn.addEventListener("click", async () => {
-    if (!state.currentUser) return;
+  dom.resetBtn?.addEventListener("click", async () => {
+    if (!state.currentUser) return alert("سجّل الدخول أولًا.");
     if (!confirm("هل أنت متأكد من حذف كل السجلات؟")) return;
     log("warn", "reset_all_local", { previousCount: state.records.length });
     const deletedCount = state.records.length;
+    const uid = state.currentUser.id;
     state.records = [];
     saveRecords({ allowEmptyBackup: true });
-    await deleteAllRemote();
     render();
     addDeletionLog(`تم حذف كل المبيعات (${deletedCount})`);
+
+    try {
+      const remoteOk = await deleteAllRemote();
+      if (!remoteOk) {
+        setSalesClearPending(true, uid);
+        setSyncStatus("تم مسح المبيعات محليًا؛ لم يتم تأكيد المسح على السحابة. لن يُسترجَع القديم إلى أن ينجح الحذف.", false);
+      } else {
+        setSalesClearPending(false, uid);
+        setSyncStatus("تم مسح كل المبيعات (محليًا وعلى السحابة).", true);
+      }
+    } catch (err) {
+      setSalesClearPending(true, uid);
+      setSyncStatus(`تم المسح محليًا؛ خطأ شبكة أو سحابة: ${err?.message || err}`, false);
+    }
   });
 
   refreshAuthButtons();
@@ -1597,6 +1788,7 @@ function init() {
   syncIdeaTypeUi();
   renderIdeasPreview();
   renderInvestors();
+  renderWasiyyat();
   renderDeletionLog();
   log("info", "init_done", {});
 }
