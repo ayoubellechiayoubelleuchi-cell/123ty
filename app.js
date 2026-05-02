@@ -415,6 +415,8 @@ function setAppEnabled(enabled) {
   for (const btn of dom.rowsContainer.querySelectorAll("button[data-sale-edit], button[data-sale-delete]")) btn.disabled = !enabled;
   for (const btn of dom.wasiyyatRowsContainer?.querySelectorAll("button[data-wasiyyat-delete]") ?? []) btn.disabled = !enabled;
   dom.resetBtn.disabled = !enabled;
+  const recoverSalesBtn = document.getElementById("recoverSalesBtn");
+  if (recoverSalesBtn) recoverSalesBtn.disabled = !enabled;
 }
 
 const SIDEBAR_NAV_IDS = [
@@ -917,6 +919,82 @@ function arrayLooksLikeDailySalesRecords(list) {
  * تجمع كل نسَخ المبيعات المحفوظة تحت مفتاح STORAGE_KEY وأبنائه (طوارئ، نسخة احتياط، لقطة مستخدم…)
  * لتفادي الاعتماد على مكان واحد فقط بعد أي كتابة خاطئة سابقة إلى [].
  */
+/** دمج جهازي + محتوى حساب محدِّث الآن؛ الحالي يغلب عند تعارض نفس المعرف */
+async function recoverSalesMergeFromDeviceAndCloud() {
+  if (!state.currentUser) {
+    alert("سجّل الدخول أولًا لتربط النسَخ بحسابك.");
+    return;
+  }
+  if (
+    !confirm(
+      "سنجمع كل نسَخ المبيعات المتاحة في هذا المتصفّح مع السجلّ الحالي ثم ما يمكن جلبُه من السحابة (Supabase). تُدار التكرارات تلقائيًا.\nهل تتابع؟"
+    )
+  ) {
+    return;
+  }
+
+  const before = state.records.length;
+  const salvagePack = loadSalesFromAllLocalSnapshots();
+
+  let merged = mergeSalesListsLocalRemote(salvagePack.list, state.records);
+  let remotePullHadRows = false;
+  let remotePullFailed = false;
+
+  if (ensureSupabaseClient() && state.db) {
+    try {
+      const remotePack = await loadRecordsFromRemote({ quiet: true });
+      remotePullHadRows = remotePack.length > 0;
+      if (remotePack.length > 0) merged = mergeSalesListsLocalRemote(remotePack, merged);
+    } catch (err) {
+      remotePullFailed = true;
+      log("warn", "recover_sales_remote_failed", String(err?.message || err));
+    }
+  }
+
+  merged.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.recordId || "").localeCompare(String(a.recordId || "")));
+  state.records = merged;
+
+  ensureAllSalesRecordsHaveIds();
+  saveRecords();
+  render();
+
+  const n = state.records.length;
+
+  if (state.db && n > 0) {
+    await upsertManyRemote(state.records);
+  }
+
+  if (n === 0) {
+    setSyncStatus(
+      remotePullHadRows === false && salvagePack.sources === 0
+        ? "لم توجد أي نسخة للاستعادة في هذا المتصفّح أو على هذا الحساب السحابي."
+        : "لم يبق أي صف بعد الدمج (قد تكون كل النُّسَخ فارغة أو تالفة).",
+      false
+    );
+    log("info", "recover_sales_merge_done", { salvageSources: salvagePack.sources, now: 0, before });
+    return;
+  }
+
+  const gained = Math.max(0, n - before);
+  if (gained > 0) addDeletionLog(`استعادة مبيعات: أصبح السجلّ ${n} عملية (${gained} كانت غير ظاهرة قبل الضم).`);
+
+  let msg =
+    gained > 0
+      ? `تم الضم: عندك ${n} عملية (زاد ${gained} عن عدد المعروض سابقًا). راجع «سجل الأيام».`
+      : `السجل الآن ${n} عملية؛ لم تُضاف صفوف جديدة (النُّسَخ أو السحابة مطابقة لما لديك أو لا يتوفر إلا هذا العدد).`;
+  if (remotePullFailed) msg += " تعذّر جلب جزء السحابة لهذه المحاولة — أُكمِل الدمج المحلي فقط.";
+  setSyncStatus(msg, gained > 0 || remotePullHadRows);
+
+  log("info", "recover_sales_merge_done", {
+    salvageSources: salvagePack.sources,
+    now: n,
+    before,
+    gained,
+    remotePullHadRows,
+    remotePullFailed
+  });
+}
+
 function loadSalesFromAllLocalSnapshots() {
   const chunks = [];
   const scannedKeys = new Set();
@@ -1154,7 +1232,8 @@ function saveDeletionLog() {
   localStorage.setItem(userDeletionLogKey(), JSON.stringify(state.deletionLog));
 }
 
-async function loadRecordsFromRemote() {
+async function loadRecordsFromRemote(options = {}) {
+  const { quiet = false } = options;
   if (!state.db || !state.currentUser) return [];
   log("info", "remote_select_start", { table: SUPABASE_TABLE, ownerId: state.currentUser.id });
   const { data, error } = await state.db
@@ -1164,13 +1243,15 @@ async function loadRecordsFromRemote() {
     .order("created_at", { ascending: false });
   if (error) {
     log("error", "remote_select_error", { message: error.message, status: error.status, code: error.code });
-    setAuthStatus(`فشل قراءة البيانات من Supabase: ${error.message}`, false);
-    setSyncStatus(`فشل القراءة من Supabase: ${error.message}`, false);
+    if (!quiet) {
+      setAuthStatus(`فشل قراءة البيانات من Supabase: ${error.message}`, false);
+      setSyncStatus(`فشل القراءة من Supabase: ${error.message}`, false);
+    }
     return [];
   }
   const rows = (data || []).length;
   log("info", "remote_select_ok", { rows });
-  setSyncStatus("تم تحميل البيانات من Supabase.", true);
+  if (!quiet) setSyncStatus("تم تحميل البيانات من Supabase.", true);
   return normalizeRecordsStep2(normalizeRecordsStep1((data || []).map((row) => row.payload).filter(Boolean)));
 }
 
@@ -2425,6 +2506,10 @@ function init() {
     saveInvestors({ allowEmptyBackup: true });
     renderInvestors();
     addDeletionLog(`تم حذف خانة المستثمرين (${deletedCount})`);
+  });
+
+  document.getElementById("recoverSalesBtn")?.addEventListener("click", () => {
+    void recoverSalesMergeFromDeviceAndCloud();
   });
 
   dom.resetBtn?.addEventListener("click", async () => {
