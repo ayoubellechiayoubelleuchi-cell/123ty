@@ -525,6 +525,102 @@
     }
     .quick-action-btn.primary:hover { filter: brightness(1.06); }
 
+    .finance-hub {
+      margin: 0 0 20px;
+      padding: 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--stroke2);
+      background: linear-gradient(180deg, rgba(124, 58, 237, 0.08), rgba(0, 0, 0, 0.22));
+      box-shadow: 0 4px 28px rgba(0, 0, 0, 0.3);
+    }
+    .finance-hub-heading {
+      margin: 0 0 8px;
+      font-size: 1.06rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .finance-hub-lead {
+      margin: 0 0 16px;
+      font-size: 13px;
+      line-height: 1.62;
+      color: var(--text-muted);
+    }
+    .finance-hub-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 840px) {
+      .finance-hub-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        align-items: stretch;
+      }
+    }
+    .finance-hub-card {
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      border: 1px solid var(--stroke);
+      background: rgba(0, 0, 0, 0.28);
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .hub-card-sales { border-color: rgba(37, 99, 235, 0.45); box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12); }
+    .hub-card-expense { border-color: rgba(52, 211, 153, 0.42); box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.1); }
+    .hub-card-wasiyyat { border-color: rgba(251, 191, 36, 0.45); box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.1); }
+    .finance-hub-card-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 800;
+      color: #e2e8f0;
+    }
+    .finance-hub-metrics {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.52;
+    }
+    .finance-hub-metrics strong {
+      color: var(--text);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .finance-hub-sub {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .finance-hub-sub strong {
+      color: var(--text);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .finance-hub-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 10px;
+    }
+    .finance-hub-mini {
+      flex: 1;
+      min-width: 118px;
+    }
+    .finance-hub-fusion {
+      margin: 14px 0 0;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px dashed rgba(167, 139, 250, 0.45);
+      background: rgba(0, 0, 0, 0.22);
+      line-height: 1.62;
+      text-align: right;
+      font-size: 13px;
+    }
+
     .summary-strip {
       display: grid;
       grid-template-columns: 1fr;
@@ -1215,12 +1311,53 @@
       font-family: inherit;
       font-size: 15px;
     }
-    .ideas-expense-shortcut {
-      margin: -6px 0 14px;
+    #expenseSectionCard .expense-log-section {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--stroke);
+    }
+    #expenseSectionCard .expense-log-title {
+      margin: 0 0 12px;
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .expense-log-card {
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: rgba(52, 211, 153, 0.06);
+      text-align: right;
+    }
+    .expense-log-card__head {
       display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
       align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+    .expense-log-card__date {
+      font-size: 12px;
+      font-weight: 700;
+      color: #6ee7b7;
+    }
+    .expense-log-card__title {
+      margin: 0 0 12px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .expense-log-card__grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .expense-log-card .daily-sale-card__row {
+      background: rgba(0, 0, 0, 0.18);
     }
 
     .wasiyyat-table-wrap {
@@ -1358,10 +1495,7 @@
 
           <div class="panel-card hidden-section" id="ideasSectionCard">
             <h2>خانة الأفكار</h2>
-            <p class="lead">اكتب عرضًا عامًا للفكرة فقط، واحتفظ بالتفاصيل الحساسة في الخانة الخاصة. المصروفات تُعبَّأ من <strong>خانة المصروفات</strong> المستقلّة وتُرفق مع الفكرة عند الإضافة.</p>
-            <div class="ideas-expense-shortcut">
-              <button type="button" class="btn-ghost-light" id="openExpenseSectionBtn"><span aria-hidden="true">🧾</span> دخول خانة المصروفات</button>
-            </div>
+            <p class="lead">اكتب عرضًا عامًا للفكرة فقط، واحتفظ بالتفاصيل الحساسة في الخانة الخاصة غير المعروضة للمستثمرين.</p>
 
             <form id="ideaForm">
               <div class="idea-type-toggle">
@@ -1430,39 +1564,40 @@
 
           <div class="panel-card hidden-section" id="expenseSectionCard">
             <h2>خانة المصروفات</h2>
-            <p class="lead">صفحة مستقلة لمصروفات الفكرة (اختياري): المشتريات، الثمن، والتاريخ. تُطبَّق القيم مع «إضافة فكرة» أو «إضافة إلى خانة المستثمرين» من خانة الأفكار.</p>
-            <div class="expense-panel">
-              <div class="grid">
-                <div class="span-2 expense-field">
-                  <label for="ideaExpensePurchase">المشتريات</label>
-                  <input
-                    form="ideaForm"
-                    id="ideaExpensePurchase"
-                    type="text"
-                    placeholder="مثال: خامات، عينات، نقل…"
-                    autocomplete="off"
-                  />
-                </div>
-                <div class="expense-field">
-                  <label for="ideaExpenseAmount">الثمن (د)</label>
-                  <input form="ideaForm" id="ideaExpenseAmount" type="number" min="0" step="0.01" placeholder="0" />
-                </div>
-                <div class="expense-field">
-                  <label for="ideaExpenseDate">التاريخ</label>
-                  <input form="ideaForm" id="ideaExpenseDate" type="date" />
+            <p class="lead">سجل مستقل عن خانة الأفكار؛ احفظ المشتريات والثمن والتاريخ، ويُخزَّن محليًا لحسابك.</p>
+            <form id="standaloneExpenseForm">
+              <div class="expense-panel">
+                <div class="grid">
+                  <div class="span-2 expense-field">
+                    <label for="expPurchase">المشتريات</label>
+                    <input id="expPurchase" type="text" placeholder="مثال: خامات، عينات، نقل…" required autocomplete="off" />
+                  </div>
+                  <div class="expense-field">
+                    <label for="expAmount">الثمن (د)</label>
+                    <input id="expAmount" type="number" min="0" step="0.01" placeholder="0" required />
+                  </div>
+                  <div class="expense-field">
+                    <label for="expDate">التاريخ</label>
+                    <input id="expDate" type="date" required />
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="actions">
-              <button type="button" class="btn-primary-light" id="goIdeasAfterExpenseBtn">الانتقال إلى خانة الأفكار</button>
-            </div>
+              <div class="actions">
+                <button type="submit" class="btn-primary-light">حفظ المصروف</button>
+              </div>
+            </form>
+            <section class="expense-log-section" aria-labelledby="expenseLogTitle">
+              <h3 class="expense-log-title" id="expenseLogTitle">سجل المصروفات</h3>
+              <div class="daily-cards expense-cards" id="expenseCards" aria-live="polite"></div>
+              <div id="expensesEmptyState" class="empty">لا توجد مصروفات بعد. أضف أول بند.</div>
+            </section>
           </div>
         </div>
 
         <div class="tables-grid hidden" id="tablesGrid">
           <div class="panel-card" id="ideasLogSection">
             <h2>سجل الأفكار</h2>
-            <p class="lead ideas-log-lead">كل فكرة في بطاقة؛ قسم المصروفات يظهر في أسفل البطاقة.</p>
+            <p class="lead ideas-log-lead">كل فكرة في بطاقة منفصلة.</p>
             <div class="idea-cards" id="ideaRows" aria-live="polite"></div>
             <div id="ideasEmptyState" class="empty">لا توجد أفكار بعد.</div>
           </div>
@@ -1503,9 +1638,43 @@
             <button type="button" class="quick-action-btn" data-quick="daily"><span class="qa-ico" aria-hidden="true">📋</span>سجل الأيام</button>
             <button type="button" class="quick-action-btn" data-quick="ideas"><span class="qa-ico" aria-hidden="true">💡</span>الأفكار</button>
             <button type="button" class="quick-action-btn" data-quick="expenses"><span class="qa-ico" aria-hidden="true">🧾</span>المصروفات</button>
+            <button type="button" class="quick-action-btn" data-quick="wasiyyat"><span class="qa-ico" aria-hidden="true">📜</span>الوصيات</button>
             <button type="button" class="quick-action-btn" data-quick="investors"><span class="qa-ico" aria-hidden="true">👥</span>المستثمرين</button>
           </div>
           <h2>ملخص المشروع</h2>
+          <section class="finance-hub" aria-labelledby="financeHubTitle">
+            <h3 class="finance-hub-heading" id="financeHubTitle">حساب موحّد: المبيعات والمصروفات والوصيات</h3>
+            <p class="finance-hub-lead">
+              الأرقام أدناه تربط <strong>المبيعات اليومية</strong> (سجل كل عملية)، و<strong>خانة المصروفات</strong>، و<strong>خانة الوصيات</strong> قبل تفاصيل البطاقات التالية في نفس الملخص.
+            </p>
+            <div class="finance-hub-grid">
+              <article class="finance-hub-card hub-card-sales">
+                <h4 class="finance-hub-card-title">المبيعات اليومية</h4>
+                <p class="finance-hub-metrics"><span id="hubSalesOps">0</span> عملية — إجمالي المبيعات <strong id="hubSalesTotalRef">0 د</strong></p>
+                <p class="finance-hub-sub">صافي الربح من السجل <strong id="hubNetProfitRef">0 د</strong></p>
+                <div class="finance-hub-actions">
+                  <button type="button" class="btn-ghost-light btn-small finance-hub-mini" data-quick="sales">تسجيل بيع</button>
+                  <button type="button" class="btn-ghost-light btn-small finance-hub-mini" data-quick="daily">سجل الأيام</button>
+                </div>
+              </article>
+              <article class="finance-hub-card hub-card-expense">
+                <h4 class="finance-hub-card-title">خانة المصروفات</h4>
+                <p class="finance-hub-metrics"><span id="hubExpenseCount">0</span> بند — إجمالي المصروف <strong id="hubExpenseSum">0 د</strong></p>
+                <div class="finance-hub-actions">
+                  <button type="button" class="btn-ghost-light btn-small finance-hub-mini" data-quick="expenses">فتح المصروفات</button>
+                </div>
+              </article>
+              <article class="finance-hub-card hub-card-wasiyyat">
+                <h4 class="finance-hub-card-title">خانة الوصيات</h4>
+                <p class="finance-hub-metrics"><span id="hubWasiyyatCount">0</span> صف — رأس مال مربوط <strong id="hubWasiyyatCapital">0 د</strong></p>
+                <p class="finance-hub-sub">ثمن منتجات متوقع <strong id="hubWasiyyatPrice">0 د</strong></p>
+                <div class="finance-hub-actions">
+                  <button type="button" class="btn-ghost-light btn-small finance-hub-mini" data-quick="wasiyyat">فتح الوصيات</button>
+                </div>
+              </article>
+            </div>
+            <p class="finance-hub-fusion hint" id="hubFusionLine"></p>
+          </section>
           <div class="summary-strip">
             <div class="sum-card c1"><span>إجمالي المبيعات</span><b id="totalSales">0.00 د</b></div>
             <div class="sum-card c2"><span>إجمالي الربح</span><b id="totalProfit">0.00 د</b></div>
@@ -1679,6 +1848,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260202f"></script>
+  <script defer src="./app.js?v=20260202h"></script>
 </body>
 </html>

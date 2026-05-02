@@ -5,6 +5,7 @@
 // =========================
 const STORAGE_KEY = "daily-sales-log-v1";
 const IDEAS_STORAGE_KEY = "project-ideas-v1";
+const EXPENSES_STORAGE_KEY = "project-expenses-v1";
 const INVESTORS_STORAGE_KEY = "investors-ideas-v1";
 const WASIYYAT_STORAGE_KEY = "wasiyyat-log-v1";
 const DELETION_LOG_KEY = "deletion-log-v1";
@@ -49,6 +50,9 @@ const dom = {
   ideaForm: document.getElementById("ideaForm"),
   rowsContainer: document.getElementById("rows"),
   ideaRowsContainer: document.getElementById("ideaRows"),
+  expenseCards: document.getElementById("expenseCards"),
+  expensesEmptyState: document.getElementById("expensesEmptyState"),
+  standaloneExpenseForm: document.getElementById("standaloneExpenseForm"),
   investorRowsContainer: document.getElementById("investorRows"),
   wasiyyatForm: document.getElementById("wasiyyatForm"),
   wasiyyatRowsContainer: document.getElementById("wasiyyatRows"),
@@ -122,10 +126,12 @@ const dom = {
     privateNotes: document.getElementById("ideaPrivateNotes"),
     capital: document.getElementById("ideaCapital"),
     price: document.getElementById("ideaPrice"),
-    qty: document.getElementById("ideaQty"),
-    expensePurchase: document.getElementById("ideaExpensePurchase"),
-    expenseAmount: document.getElementById("ideaExpenseAmount"),
-    expenseDate: document.getElementById("ideaExpenseDate")
+    qty: document.getElementById("ideaQty")
+  },
+  expenseFields: {
+    purchase: document.getElementById("expPurchase"),
+    amount: document.getElementById("expAmount"),
+    date: document.getElementById("expDate")
   },
   ideaTotals: {
     expectedSalesEl: document.getElementById("ideaExpectedSales"),
@@ -172,6 +178,7 @@ const state = {
   ideas: [],
   investors: [],
   wasiyyat: [],
+  expenses: [],
   deletionLog: [],
   authBusy: false,
   authEventsBound: false
@@ -455,6 +462,19 @@ function closeSidebarDrawerIfMobile() {
   if (isMobileSidebarLayout()) setSidebarDrawerOpen(false);
 }
 
+function handleDashboardQuick(q) {
+  if (!q) return;
+  if (q === "sales") setMainView("sales");
+  else if (q === "daily") setMainView("daily");
+  else if (q === "ideas") setMainView("ideas");
+  else if (q === "expenses") setMainView("expenses");
+  else if (q === "wasiyyat") setMainView("wasiyyat");
+  else if (q === "investors") setMainView("investors");
+  else return;
+  scrollToPanel(dom.workspaceTop);
+  closeSidebarDrawerIfMobile();
+}
+
 function updateBottomNavActive(view) {
   const dock = document.getElementById("bottomNav");
   if (!dock) return;
@@ -551,9 +571,11 @@ function applySignedOutState(message = "تم تسجيل الخروج.") {
   state.ideas = [];
   state.investors = [];
   state.wasiyyat = [];
+  state.expenses = [];
   state.deletionLog = [];
   render();
   renderIdeas();
+  renderExpenses();
   renderInvestors();
   renderWasiyyat();
   renderDeletionLog();
@@ -576,6 +598,7 @@ async function activateAppForUser(user, statusSuffix = "") {
   try {
     const local = loadRecords();
     state.ideas = loadIdeas();
+    state.expenses = loadExpenses();
     state.investors = loadInvestors();
     state.wasiyyat = loadWasiyyat();
     state.deletionLog = loadDeletionLog();
@@ -609,6 +632,7 @@ async function activateAppForUser(user, statusSuffix = "") {
     saveRecords();
     render();
     renderIdeas();
+    renderExpenses();
     renderInvestors();
     renderWasiyyat();
     renderDeletionLog();
@@ -619,6 +643,7 @@ async function activateAppForUser(user, statusSuffix = "") {
     // Keep user inside app even if sync fails.
     render();
     renderIdeas();
+    renderExpenses();
     renderInvestors();
     renderWasiyyat();
     renderIdeasPreview();
@@ -668,6 +693,10 @@ function userIdeasStorageKey() {
   return state.currentUser ? `${IDEAS_STORAGE_KEY}:${state.currentUser.id}` : IDEAS_STORAGE_KEY;
 }
 
+function userExpensesStorageKey() {
+  return state.currentUser ? `${EXPENSES_STORAGE_KEY}:${state.currentUser.id}` : EXPENSES_STORAGE_KEY;
+}
+
 function userInvestorsStorageKey() {
   return state.currentUser ? `${INVESTORS_STORAGE_KEY}:${state.currentUser.id}` : INVESTORS_STORAGE_KEY;
 }
@@ -684,6 +713,10 @@ function backupIdeasStorageKey() {
   return `${IDEAS_STORAGE_KEY}:backup`;
 }
 
+function backupExpensesStorageKey() {
+  return `${EXPENSES_STORAGE_KEY}:backup`;
+}
+
 function backupInvestorsStorageKey() {
   return `${INVESTORS_STORAGE_KEY}:backup`;
 }
@@ -698,6 +731,10 @@ function emergencyRecordsKey() {
 
 function emergencyIdeasKey() {
   return `${IDEAS_STORAGE_KEY}:emergency`;
+}
+
+function emergencyExpensesKey() {
+  return `${EXPENSES_STORAGE_KEY}:emergency`;
 }
 
 function emergencyInvestorsKey() {
@@ -794,6 +831,36 @@ function loadIdeas() {
   }
 }
 
+function normalizeExpensesList(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((row) => {
+      const amount = Math.max(0, Number(row.amount) || 0);
+      return {
+        expenseId: String(row.expenseId || "").trim() || newRecordId(),
+        purchase: String(row.purchase || "").trim(),
+        amount,
+        date: String(row.date || "").trim()
+      };
+    })
+    .filter((row) => row.purchase.length > 0 || row.amount > 0 || row.date.length > 0);
+}
+
+function loadExpenses() {
+  try {
+    let raw = localStorage.getItem(userExpensesStorageKey());
+    if (!raw) raw = localStorage.getItem(backupExpensesStorageKey());
+    if (!raw) raw = localStorage.getItem(EXPENSES_STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(emergencyExpensesKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    const list = normalizeExpensesList(Array.isArray(parsed) ? parsed : []);
+    log("info", "expenses_local_load", { key: userExpensesStorageKey(), count: list.length });
+    return list;
+  } catch {
+    log("warn", "expenses_local_load_failed", { key: userExpensesStorageKey() });
+    return [];
+  }
+}
+
 function saveIdeas(options = {}) {
   const { allowEmptyBackup = false } = options;
   const payload = JSON.stringify(state.ideas);
@@ -803,6 +870,17 @@ function saveIdeas(options = {}) {
     localStorage.setItem(backupIdeasStorageKey(), payload);
   }
   log("info", "ideas_local_save", { key: userIdeasStorageKey(), count: state.ideas.length });
+}
+
+function saveExpenses(options = {}) {
+  const { allowEmptyBackup = false } = options;
+  const payload = JSON.stringify(state.expenses);
+  localStorage.setItem(userExpensesStorageKey(), payload);
+  localStorage.setItem(emergencyExpensesKey(), payload);
+  if (state.expenses.length > 0 || allowEmptyBackup) {
+    localStorage.setItem(backupExpensesStorageKey(), payload);
+  }
+  log("info", "expenses_local_save", { key: userExpensesStorageKey(), count: state.expenses.length });
 }
 
 function loadInvestors() {
@@ -982,8 +1060,6 @@ function computeIdea(base) {
   const qty = Number(base.qty) || 0;
   const expectedSales = price * qty;
   const expectedProfit = expectedSales - capital;
-  const expenseAmountRaw = Number(base.expenseAmount);
-  const expenseAmount = Number.isFinite(expenseAmountRaw) && expenseAmountRaw > 0 ? expenseAmountRaw : 0;
   const ideaType = base.ideaType === "service" ? "service" : "product";
   return {
     ideaId: newRecordId(),
@@ -994,11 +1070,19 @@ function computeIdea(base) {
     capital,
     price,
     qty,
-    expensePurchase: String(base.expensePurchase || "").trim(),
-    expenseAmount,
-    expenseDate: String(base.expenseDate || "").trim(),
     expectedSales,
     expectedProfit
+  };
+}
+
+function buildExpenseEntry(raw) {
+  const amtRaw = Number(raw.amount);
+  const amount = Number.isFinite(amtRaw) && amtRaw >= 0 ? amtRaw : 0;
+  return {
+    expenseId: newRecordId(),
+    purchase: String(raw.purchase || "").trim(),
+    amount,
+    date: String(raw.date || "").trim()
   };
 }
 
@@ -1094,6 +1178,9 @@ function render() {
     else dom.sidebarProfitTrend.textContent = "متعادل";
   }
 
+  renderFinanceHub();
+  renderInsights();
+
   log("info", "render_done", { rowsRendered: state.records.length });
 }
 
@@ -1137,6 +1224,44 @@ function renderMonthlyProfitSummary() {
   dom.monthlyProfitSummary.innerHTML = entries
     .map(([month, totalProfit]) => `<div class="rank-item"><span>${escapeHtml(month)}</span><strong>${currency(totalProfit)}</strong></div>`)
     .join("");
+}
+
+/** يحدّث بطاقات «المبيعات اليومية + المصروفات + الوصيات» في ملخص المشروع */
+function renderFinanceHub() {
+  const fusionEl = document.getElementById("hubFusionLine");
+  if (!fusionEl) return;
+
+  const salesOps = state.records.length;
+  const totalSalesAmt = state.records.reduce((acc, r) => acc + (Number(r.totalSale) || 0), 0);
+  const totalNet = state.records.reduce((acc, r) => acc + (Number(r.netProfit) || 0), 0);
+
+  const expCnt = state.expenses.length;
+  const expSum = state.expenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+
+  const wyCnt = state.wasiyyat.length;
+  const wyCap = state.wasiyyat.reduce((acc, w) => acc + (Number(w.capital) || 0), 0);
+  const wyPrice = state.wasiyyat.reduce((acc, w) => acc + (Number(w.productPrice) || 0), 0);
+
+  const setTxt = (id, text) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = text;
+  };
+
+  setTxt("hubSalesOps", String(salesOps));
+  setTxt("hubSalesTotalRef", currency(totalSalesAmt));
+  setTxt("hubNetProfitRef", currency(totalNet));
+
+  setTxt("hubExpenseCount", String(expCnt));
+  setTxt("hubExpenseSum", currency(expSum));
+
+  setTxt("hubWasiyyatCount", String(wyCnt));
+  setTxt("hubWasiyyatCapital", currency(wyCap));
+  setTxt("hubWasiyyatPrice", currency(wyPrice));
+
+  const afterExp = totalNet - expSum;
+  fusionEl.textContent = `ربط الموازنة: صافي الربح من سجل المبيعات ${currency(totalNet)} ناقص إجمالي المصروفات ${currency(expSum)} = ${currency(
+    afterExp
+  )}. — الوصيات: ${wyCnt} صفًا؛ رأس مال مربوط ${currency(wyCap)}؛ ثمن متوقع للبيع ${currency(wyPrice)}.`;
 }
 
 function renderIdeasPreview() {
@@ -1190,9 +1315,6 @@ function renderIdeas() {
     const sales = Number(idea.expectedSales) || 0;
     const profit = Number(idea.expectedProfit) || 0;
     const marginPct = sales > 0 ? Math.round((profit / sales) * 100) : 0;
-    const expensePurchase = String(idea.expensePurchase || "").trim();
-    const expenseAmount = Number(idea.expenseAmount) || 0;
-    const expenseDate = String(idea.expenseDate || "").trim();
     const desc = String(idea.description || "").trim();
     const article = document.createElement("article");
     article.className = "idea-log-card";
@@ -1209,19 +1331,33 @@ function renderIdeas() {
         ${dailyKvMoney("إجمالي البيع", currency(sales))}
         ${dailyKvMoney("الربح المتوقع", currency(profit))}
         ${dailyKvRow("الهامش", escapeHtml(`${marginPct}%`))}
-      </div>
-      <div class="idea-log-card__expwrap">
-        <div class="idea-log-card__exptitle">المصروفات</div>
-        <div class="idea-log-card__expgrid">
-          ${dailyKvRow("المشتريات", escapeHtml(expensePurchase || "—"))}
-          ${dailyKvMoney("الثمن", expenseAmount > 0 ? currency(expenseAmount) : "—")}
-          ${dailyKvRow("التاريخ", escapeHtml(expenseDate || "—"))}
-        </div>
       </div>`;
     dom.ideaRowsContainer.appendChild(article);
   }
   dom.ideasEmptyState.style.display = state.ideas.length === 0 ? "block" : "none";
   renderInsights();
+}
+
+function renderExpenses() {
+  if (!dom.expenseCards || !dom.expensesEmptyState) return;
+  dom.expenseCards.innerHTML = "";
+  const list = [...state.expenses].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  for (const row of list) {
+    const article = document.createElement("article");
+    article.className = "expense-log-card";
+    const idEsc = escapeHtml(String(row.expenseId || ""));
+    article.innerHTML = `
+      <div class="expense-log-card__head">
+        <span class="expense-log-card__date">${escapeHtml(String(row.date || "—"))}</span>
+        <button type="button" class="btn-ghost-light btn-small" data-expense-delete="${idEsc}" style="color:var(--danger)">حذف</button>
+      </div>
+      <h3 class="expense-log-card__title">${escapeHtml(String(row.purchase || "—"))}</h3>
+      <div class="expense-log-card__grid">
+        ${dailyKvMoney("الثمن", currency(Number(row.amount) || 0))}
+      </div>`;
+    dom.expenseCards.appendChild(article);
+  }
+  dom.expensesEmptyState.style.display = state.expenses.length === 0 ? "block" : "none";
 }
 
 function renderWasiyyat() {
@@ -1243,6 +1379,7 @@ function renderWasiyyat() {
     dom.wasiyyatRowsContainer.appendChild(tr);
   }
   dom.wasiyyatEmptyState.style.display = state.wasiyyat.length === 0 ? "block" : "none";
+  renderFinanceHub();
 }
 
 function renderInvestors() {
@@ -1387,9 +1524,11 @@ async function refreshSessionState() {
     authTrace("refresh_session:no_user", {});
     state.records = [];
     state.ideas = [];
+    state.expenses = [];
     state.wasiyyat = [];
     render();
     renderIdeas();
+    renderExpenses();
     renderWasiyyat();
     setPageMode(false);
     setAppEnabled(false);
@@ -1587,14 +1726,13 @@ function init() {
   document.getElementById("dashboardQuickActions")?.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-quick]");
     if (!btn) return;
-    const q = btn.getAttribute("data-quick");
-    if (q === "sales") setMainView("sales");
-    else if (q === "daily") setMainView("daily");
-    else if (q === "ideas") setMainView("ideas");
-    else if (q === "expenses") setMainView("expenses");
-    else if (q === "investors") setMainView("investors");
-    scrollToPanel(dom.workspaceTop);
-    closeSidebarDrawerIfMobile();
+    handleDashboardQuick(btn.getAttribute("data-quick"));
+  });
+
+  dom.projectSummarySection?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-quick]");
+    if (!btn) return;
+    handleDashboardQuick(btn.getAttribute("data-quick"));
   });
 
   document.getElementById("bottomNav")?.addEventListener("click", (event) => {
@@ -1632,16 +1770,6 @@ function init() {
   });
   dom.navExpenses?.addEventListener("click", () => {
     setMainView("expenses");
-    scrollToPanel(dom.workspaceTop);
-    closeSidebarDrawerIfMobile();
-  });
-  document.getElementById("openExpenseSectionBtn")?.addEventListener("click", () => {
-    setMainView("expenses");
-    scrollToPanel(dom.workspaceTop);
-    closeSidebarDrawerIfMobile();
-  });
-  document.getElementById("goIdeasAfterExpenseBtn")?.addEventListener("click", () => {
-    setMainView("ideas");
     scrollToPanel(dom.workspaceTop);
     closeSidebarDrawerIfMobile();
   });
@@ -1819,14 +1947,44 @@ function init() {
     setSyncStatus("تم حذف سجل الوصية.", true);
   });
 
+  dom.standaloneExpenseForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
+    const f = dom.expenseFields;
+    if (!f.purchase || !f.amount || !f.date) return;
+    const purchase = f.purchase.value.trim();
+    const amtRaw = Number(f.amount.value);
+    const amount = f.amount.value.trim() === "" || Number.isNaN(amtRaw) ? 0 : amtRaw;
+    const date = f.date.value.trim();
+    if (!purchase) return alert("أدخل وصف المشتريات.");
+    if (amount < 0 || Number.isNaN(amount)) return alert("أدخل ثمنًا صحيحًا.");
+    if (!date) return alert("اختر تاريخ المصروف.");
+    const entry = buildExpenseEntry({ purchase, amount, date });
+    state.expenses.unshift(entry);
+    saveExpenses();
+    renderExpenses();
+    dom.standaloneExpenseForm.reset();
+    setSyncStatus("تم حفظ المصروف.", true);
+  });
+
+  dom.expenseCards?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-expense-delete]");
+    if (!btn || !state.currentUser) return;
+    const id = btn.getAttribute("data-expense-delete");
+    const idx = state.expenses.findIndex((e) => String(e.expenseId) === id);
+    if (idx < 0) return;
+    if (!confirm("حذف هذا المصروف من السجل؟")) return;
+    state.expenses.splice(idx, 1);
+    saveExpenses();
+    renderExpenses();
+    setSyncStatus("تم حذف المصروف.", true);
+  });
+
   dom.ideaForm.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!state.currentUser) return alert("سجّل الدخول بـ Gmail أولًا.");
     const ideaType =
       dom.ideaTypeService?.checked ? "service" : dom.ideaTypeProduct?.checked ? "product" : "product";
-    const expAmtRaw = Number(dom.ideaFields.expenseAmount?.value);
-    const expAmt =
-      dom.ideaFields.expenseAmount?.value.trim() === "" || Number.isNaN(expAmtRaw) ? 0 : expAmtRaw;
     const base = {
       name: dom.ideaFields.name.value.trim(),
       description: dom.ideaFields.description.value.trim(),
@@ -1834,15 +1992,11 @@ function init() {
       ideaType,
       capital: Number(dom.ideaFields.capital.value),
       price: Number(dom.ideaFields.price.value),
-      qty: Number(dom.ideaFields.qty.value),
-      expensePurchase: dom.ideaFields.expensePurchase?.value.trim() || "",
-      expenseAmount: expAmt,
-      expenseDate: dom.ideaFields.expenseDate?.value.trim() || ""
+      qty: Number(dom.ideaFields.qty.value)
     };
     if (!base.name || !base.description || base.capital < 0 || Number.isNaN(base.capital) || base.price < 0 || Number.isNaN(base.price) || base.qty < 0 || Number.isNaN(base.qty)) {
       return;
     }
-    if (expAmt < 0 || Number.isNaN(expAmt)) return alert("أدخل ثمنًا صحيحًا للمصروف أو اتركه فارغًا.");
     const idea = computeIdea(base);
     const shouldSendToInvestors = !!dom.sendToInvestors?.checked || base.capital <= 0;
     if (shouldSendToInvestors) {
