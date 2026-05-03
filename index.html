@@ -8,7 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#070a12" />
   <meta name="color-scheme" content="dark" />
-  <link rel="icon" href="data:,">
+  <link rel="icon" href="data:," />
   <title>مشروعي — تسجيل المبيعات</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -154,6 +154,19 @@
     .auth-status.ok { color: #4ade80; font-weight: 600; }
     .hidden { display: none !important; }
 
+    /* نص مخفي مرئياً لمكوّنات الإتاحة (aria-labelledby) */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     /* ----- تخطيط التطبيق ----- */
     #appPage.app-layout {
       overflow-x: clip;
@@ -223,6 +236,11 @@
     }
 
     .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      flex-direction: row;
+      gap: 10px;
       text-align: right;
       width: 100%;
       padding: 12px 14px;
@@ -235,6 +253,22 @@
       cursor: pointer;
       font-family: inherit;
       transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+
+    .nav-item-ico {
+      font-size: 1.18rem;
+      line-height: 1;
+      flex-shrink: 0;
+      width: 1.5em;
+      text-align: center;
+      opacity: 0.95;
+      font-style: normal;
+    }
+
+    .nav-item-label {
+      flex: 1;
+      text-align: right;
+      line-height: 1.35;
     }
 
     .nav-item:hover { background: var(--nav-hover); color: var(--sidebar-text); }
@@ -466,9 +500,8 @@
       background: rgba(0, 0, 0, 0.22);
     }
     .debt-linked-title { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
-    .debt-toggle-row { display: flex; align-items: flex-start; gap: 10px; }
-    .debt-toggle-row input[type="checkbox"] { width: auto; margin-top: 4px; accent-color: #a78bfa; }
-    .debt-toggle-row label { cursor: pointer; font-size: 13px; color: var(--text); }
+    .debt-toggle-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 13px; color: var(--text); }
+    .debt-toggle-row input[type="checkbox"] { width: auto; margin-top: 4px; accent-color: #a78bfa; flex-shrink: 0; }
 
     .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
 
@@ -652,19 +685,16 @@
     .hub-card-sales { border-color: rgba(37, 99, 235, 0.45); box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12); }
     .hub-card-expense { border-color: rgba(52, 211, 153, 0.42); box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.1); }
     .hub-card-wasiyyat { border-color: rgba(251, 191, 36, 0.45); box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.1); }
-    .hub-card-personal {
-      grid-column: 1 / -1;
-      border-color: rgba(167, 139, 250, 0.5);
-      box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.12);
-    }
-    .finance-hub-personal-fields {
+    .finance-hub-personal-fields,
+    .personal-wallet-fields {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       align-items: flex-end;
       margin-top: 4px;
     }
-    .finance-hub-personal-fields label {
+    .finance-hub-personal-fields label,
+    .personal-wallet-fields label {
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -674,7 +704,8 @@
       min-width: 160px;
       flex: 1 1 180px;
     }
-    .finance-hub-personal-fields input[type="number"] {
+    .finance-hub-personal-fields input[type="number"],
+    .personal-wallet-fields input[type="number"] {
       padding: 8px 10px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--stroke);
@@ -682,7 +713,22 @@
       color: var(--text);
       font-size: 14px;
     }
+    #personalWalletSectionCard {
+      border-color: rgba(167, 139, 250, 0.45);
+      box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.1);
+    }
+    .personal-wallet-metrics {
+      margin-top: 10px !important;
+    }
+    .sidebar-widget-divider {
+      margin: 8px 0;
+      border-top: 1px dashed var(--sidebar-border);
+      opacity: 0.85;
+    }
     .finance-hub-remaining--warn { color: #fb7185 !important; }
+    .wallet-sidebar-warn {
+      color: #fb7185 !important;
+    }
     .finance-hub-card-title {
       margin: 0;
       font-size: 13px;
@@ -722,15 +768,13 @@
       flex: 1;
       min-width: 118px;
     }
-    .finance-hub-fusion {
-      margin: 14px 0 0;
-      padding: 12px 14px;
-      border-radius: var(--radius-sm);
-      border: 1px dashed rgba(167, 139, 250, 0.45);
-      background: rgba(0, 0, 0, 0.22);
-      line-height: 1.62;
-      text-align: right;
-      font-size: 13px;
+
+    /* عنوان بطاقة البيع بحجم h1 القديم لتفادي أكثر من h1 واحد في الصفحة */
+    #salesSectionCard > h2.sale-form-heading {
+      font-size: 1.18rem;
+      margin: 0 0 8px;
+      font-weight: 800;
+      color: var(--text);
     }
 
     .summary-strip {
@@ -1549,11 +1593,12 @@
 </head>
 <body>
   <aside id="fileProtoHint" aria-label="بيئة ملف محلي">
-    هذه الصفحة تُفتح كـ مسار ملف (<code>file://</code>)؛ المتصفّح يفرض عليها قيوداً وقد يطبع تحذير «Unsafe URL». للاستخدام الآمن محلياً، من مجلد المشروع نفّذ
+    أنت تفتح الصفحة من القرص (<code>file://</code>)، وهذا الوضع <strong>لا يعتمد لتسجيل الدخول</strong>: المتصفّح يقيّد الاتصال بخدمات Gmail/Supabase (سياسة الأمان وبداية عنوان غير معتادة).
+    ليعمل الدخول والمزامنة، شغِّل مشروعًا صغيرًا يقدِّم ملفاتك على عنوان <strong>http://</strong> محلي؛ من مجلد <code>progakt</code> مثلاً:
     <code>npx --yes serve -l 5173</code>
-    ثم افتح في المتصفّح
+    ثم افتح
     <code>http://localhost:5173</code>
-    (على Vercel لا يحدث هذا؛ التحذير خاص بتشغيل الملف من القرص).
+    — أو مع بايثون: <code>py -m http.server 5173</code>.
   </aside>
   <div id="authPage" class="auth-wrap">
     <div class="auth-card">
@@ -1590,7 +1635,7 @@
 
         <div class="form-stack">
           <div class="panel-card hidden-section" id="salesSectionCard">
-            <h1>تسجيل بيع جديد</h1>
+            <h2 class="sale-form-heading">تسجيل بيع جديد</h2>
             <p class="lead">سجّل البيع اليومي؛ يُحسب الربح وإعادة الاستثمار 10% والربح الصافي تلقائيًا.</p>
 
             <form id="saleForm">
@@ -1697,6 +1742,7 @@
                 <label><input type="radio" name="ideaType" id="ideaTypeProduct" value="product" checked /><span>منتج</span></label>
                 <label><input type="radio" name="ideaType" id="ideaTypeService" value="service" /><span>خدمة</span></label>
               </div>
+              <div id="ideaTypeHint" class="hint" style="margin-top: 8px"></div>
               <div class="grid">
                 <div>
                   <label for="ideaName">اسم الفكرة</label>
@@ -1727,10 +1773,10 @@
               <div class="hint" style="margin-top:8px;">
                 إذا ما عندكش رأس مال للفكرة، فعّل هذا الخيار لإرسالها إلى خانة المستثمرين.
               </div>
-              <div class="debt-toggle-row" style="margin-top:6px;">
+              <label class="debt-toggle-row" style="margin-top: 6px">
                 <input type="checkbox" id="sendToInvestors" />
-                <label for="sendToInvestors">ليس لدي رأس مال — أرسل الفكرة إلى المستثمرين</label>
-              </div>
+                <span>ليس لدي رأس مال — أرسل الفكرة إلى المستثمرين</span>
+              </label>
               <div style="margin-top: 10px;">
                 <label for="ideaInvestorPhone">رقم الهاتف</label>
                 <input id="ideaInvestorPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="مثال: 0912345678" />
@@ -1742,6 +1788,8 @@
                 <div class="stat-box violet">الربح المتوقع <b id="ideaExpectedProfit">0.00 د</b></div>
                 <div class="stat-box rose">هامش الربح <b id="ideaProfitMargin">0%</b></div>
               </div>
+
+              <div id="ideaAdvice" class="idea-panel" role="status" aria-live="polite" style="margin-top: 10px"></div>
 
               <div class="idea-panels">
                 <div class="idea-panel">
@@ -1787,6 +1835,25 @@
               <div id="expensesEmptyState" class="empty">لا توجد مصروفات بعد. أضف أول بند.</div>
             </section>
           </div>
+
+          <div class="panel-card hidden-section" id="personalWalletSectionCard">
+            <h2>المال الخاص</h2>
+            <p class="lead">رصيدك المتاح للصرف خارج سجل الفواتير؛ إجمالي ما في «خانة المصروفات» يُطرح منه تلقائيًا. لا يغيّر صافي الربح المحسوب من المبيعات.</p>
+            <div class="finance-hub-personal-fields personal-wallet-fields">
+              <label class="personal-wallet-fields__label">
+                رصيد المال الخاص (د)
+                <input id="hubPersonalWalletInput" type="number" min="0" step="0.01" placeholder="0" autocomplete="off" inputmode="decimal" />
+              </label>
+              <button type="button" id="hubPersonalWalletSaveBtn" class="btn-primary-light btn-small">تحديث الرصيد</button>
+            </div>
+            <p class="finance-hub-metrics personal-wallet-metrics">
+              مجموع المصروفات من السجل: <strong id="hubPersonalExpenseTotalRef">0 د</strong>
+              — المتبقي بعد المصروفات: <strong id="hubPersonalRemaining">0 د</strong>
+            </p>
+            <p class="hint" style="margin-top:10px;">
+              لتسجيل الصرف افتح من القائمة: <strong>خانة المصروفات</strong>.
+            </p>
+          </div>
         </div>
 
         <div class="tables-grid hidden" id="tablesGrid">
@@ -1828,7 +1895,8 @@
               <b id="dashboardHeroProfit">0.00 د</b>
             </div>
           </div>
-          <div class="quick-actions" id="dashboardQuickActions" aria-label="إجراءات سريعة">
+          <p id="dashboardQuickActionsLabel" class="sr-only">إجراءات سريعة للوصول إلى أهم الأقسام</p>
+          <div class="quick-actions" id="dashboardQuickActions" role="group" aria-labelledby="dashboardQuickActionsLabel">
             <button type="button" class="quick-action-btn primary" data-quick="sales"><span class="qa-ico" aria-hidden="true">➕</span>تسجيل بيع</button>
             <button type="button" class="quick-action-btn" data-quick="daily"><span class="qa-ico" aria-hidden="true">📋</span>سجل الأيام</button>
             <button type="button" class="quick-action-btn" data-quick="ideas"><span class="qa-ico" aria-hidden="true">💡</span>الأفكار</button>
@@ -1840,29 +1908,12 @@
           <section class="finance-hub" aria-labelledby="financeHubTitle">
             <h3 class="finance-hub-heading" id="financeHubTitle">حساب موحّد: المبيعات والمصروفات والوصيات</h3>
             <p class="finance-hub-lead">
-              تربط <strong>المبيعات اليومية</strong> و<strong>المصروفات</strong> و<strong>الوصيات</strong>.
-              <strong>المال الخاص</strong> رصيد تضعه بنفسك (ما هو متاح لك خارج/إلى جانب سجل الفواتير)؛ كل ما في «خانة المصروفات» يُطرح منه تلقائيًا لتظهر <strong>الجيب بعد المصاريف</strong>.
+              تربط <strong>المبيعات اليومية</strong> و<strong>المصروفات</strong> و<strong>الوصيات</strong>. ل<strong>المال الخاص والمتبقي بعد المصاريف</strong> استخدم صفحة <strong>المال الخاص</strong> في القائمة الجانبية.
             </p>
             <div class="finance-hub-grid">
-              <article class="finance-hub-card hub-card-personal">
-                <h4 class="finance-hub-card-title">المال الخاص</h4>
-                <p class="finance-hub-sub" style="margin: 0">
-                  ضع الرصيد الحالي المتاح؛ إجمالي المصروفات المسجّلة يُنقَص منه في السطر أسفله (لا يغيّر سجل الأرباح في المبيعات).
-                </p>
-                <div class="finance-hub-personal-fields">
-                  <label for="hubPersonalWalletInput">
-                    رصيد المال الخاص (د)
-                    <input id="hubPersonalWalletInput" type="number" min="0" step="0.01" placeholder="0" autocomplete="transaction-amount" inputmode="decimal" />
-                  </label>
-                  <button type="button" id="hubPersonalWalletSaveBtn" class="btn-ghost-light btn-small">تحديث الرصيد</button>
-                </div>
-                <p class="finance-hub-metrics" style="margin-top: 6px">
-                  المتبقي بعد المصروفات: <strong id="hubPersonalRemaining">0 د</strong>
-                </p>
-              </article>
               <article class="finance-hub-card hub-card-sales">
                 <h4 class="finance-hub-card-title">المبيعات اليومية</h4>
-                <p class="finance-hub-metrics"><span id="hubSalesOps">0</span> عملية — إجمالي المبيعات <strong id="hubSalesTotalRef">0 د</strong></p>
+                <p class="finance-hub-metrics"><span id="hubSalesOps">0</span> عملية — المجموع <strong id="hubSalesTotalRef">0 د</strong></p>
                 <p class="finance-hub-sub">صافي الربح من السجل <strong id="hubNetProfitRef">0 د</strong></p>
                 <div class="finance-hub-actions">
                   <button type="button" class="btn-ghost-light btn-small finance-hub-mini" data-quick="sales">تسجيل بيع</button>
@@ -1887,7 +1938,6 @@
             </div>
           </section>
           <div class="summary-strip">
-            <div class="sum-card c1"><span>إجمالي المبيعات</span><b id="totalSales">0.00 د</b></div>
             <div class="sum-card c2"><span>إجمالي الربح</span><b id="totalProfit">0.00 د</b></div>
             <div class="sum-card c3"><span>إعادة استثمار 10%</span><b id="totalReinvest">0.00 د</b></div>
             <div class="sum-card c4"><span>الربح الصافي</span><b id="totalNetProfit">0.00 د</b></div>
@@ -2022,15 +2072,34 @@
 
     <aside id="appSidebar" class="app-sidebar" aria-label="القائمة الرئيسية">
       <button type="button" class="sidebar-brand" id="navProjectHome"><span class="icon">⚙️</span> مشروعي</button>
-      <nav class="sidebar-nav">
-        <button type="button" class="nav-item" id="navSales" data-section="sales">المبيعات اليومية</button>
-        <button type="button" class="nav-item" id="navDailyLog">سجل الأيام</button>
-        <button type="button" class="nav-item" id="navIdeasForm" data-section="ideas">خانة الأفكار</button>
-        <button type="button" class="nav-item" id="navExpenses">خانة المصروفات</button>
-        <button type="button" class="nav-item" id="navWasiyyat">خانة الوصيات</button>
-        <button type="button" class="nav-item" id="navInvestors">خانة المستثمرين</button>
-        <button type="button" class="nav-item" id="navSummary">ملخص المشروع</button>
-        <button type="button" class="nav-item" id="navSettings">الإعدادات</button>
+      <nav class="sidebar-nav" aria-label="التنقل — القائمة الجانبية">
+        <button type="button" class="nav-item" id="navSales" data-section="sales" title="تسجيل عملية بيع يومية وجداول الربح">
+          <span class="nav-item-ico" aria-hidden="true">💰</span><span class="nav-item-label">المبيعات اليومية</span>
+        </button>
+        <button type="button" class="nav-item" id="navDailyLog" title="عرض وتعديل كل عمليات البيع المسجّلة">
+          <span class="nav-item-ico" aria-hidden="true">📋</span><span class="nav-item-label">سجل الأيام</span>
+        </button>
+        <button type="button" class="nav-item" id="navIdeasForm" data-section="ideas" title="عروض الأفكار والهوامش المتوقعة">
+          <span class="nav-item-ico" aria-hidden="true">💡</span><span class="nav-item-label">خانة الأفكار</span>
+        </button>
+        <button type="button" class="nav-item" id="navExpenses" title="تسجيل المشتريات والمصروفات">
+          <span class="nav-item-ico" aria-hidden="true">🧾</span><span class="nav-item-label">خانة المصروفات</span>
+        </button>
+        <button type="button" class="nav-item" id="navPersonalWallet" title="رصيدك الخاص والمتبقي بعد طرح المصروفات">
+          <span class="nav-item-ico" aria-hidden="true">👛</span><span class="nav-item-label">المال الخاص</span>
+        </button>
+        <button type="button" class="nav-item" id="navWasiyyat" title="متابعة مبيعات غير مكتملة والوصايا">
+          <span class="nav-item-ico" aria-hidden="true">📜</span><span class="nav-item-label">خانة الوصيات</span>
+        </button>
+        <button type="button" class="nav-item" id="navInvestors" title="أفكار مُرسلة عند عدم توفر رأس مال">
+          <span class="nav-item-ico" aria-hidden="true">👥</span><span class="nav-item-label">خانة المستثمرين</span>
+        </button>
+        <button type="button" class="nav-item" id="navSummary" title="لوحة موحّدة: مبيعات، مصروفات، وصيات">
+          <span class="nav-item-ico" aria-hidden="true">📊</span><span class="nav-item-label">ملخص المشروع</span>
+        </button>
+        <button type="button" class="nav-item" id="navSettings" title="استعادة البيانات، المسح، وتسجيل الخروج">
+          <span class="nav-item-ico" aria-hidden="true">⚙️</span><span class="nav-item-label">الإعدادات</span>
+        </button>
       </nav>
 
       <div class="sidebar-widget">
@@ -2041,6 +2110,8 @@
         <div class="sidebar-widget-row"><span>صافي الربح</span><b id="sidebarNetProfit">0.00 د</b></div>
         <div class="sidebar-widget-row"><span>رأس المال الحالي</span><b id="sidebarCapital">0.00 د</b></div>
         <div class="sidebar-widget-row"><span>المستحقات (آجل)</span><b id="sidebarReceivables">0.00 د</b></div>
+        <div class="sidebar-widget-divider" aria-hidden="true"></div>
+        <div class="sidebar-widget-row"><span>المال الخاص (المتبقي)</span><b id="sidebarPersonalRemaining">—</b></div>
       </div>
 
       <button type="button" class="sidebar-logout" id="logoutBtnApp">تسجيل الخروج</button>
@@ -2051,7 +2122,7 @@
       <span class="sidebar-edge-label">مشروعي</span>
     </button>
 
-    <nav class="bottom-nav" id="bottomNav" aria-label="التنقل السفلي">
+    <nav class="bottom-nav" id="bottomNav" aria-label="التنقل — الشريط السفلي">
       <button type="button" data-bottom-view="summary" id="bnHome"><span class="bn-ico" aria-hidden="true">🏠</span><span>الرئيسية</span></button>
       <button type="button" data-bottom-view="daily" id="bnDaily"><span class="bn-ico" aria-hidden="true">📊</span><span>السجل</span></button>
       <div class="fab-wrap">
@@ -2063,6 +2134,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260503t"></script>
+  <script defer src="./app.js?v=20260504e"></script>
 </body>
 </html>

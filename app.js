@@ -10,6 +10,8 @@ const INVESTORS_STORAGE_KEY = "investors-ideas-v1";
 const WASIYYAT_STORAGE_KEY = "wasiyyat-log-v1";
 const PERSONAL_WALLET_STORAGE_KEY = "personal-wallet-v1";
 const DELETION_LOG_KEY = "deletion-log-v1";
+/** آخر مستخدم فُتح حسابُه؛ يحمي من ظهور واجهة فارغة إن فُقدت قراءة جلسة Supabase لحظيًا بعد تحديث الصفحة. يُمحى عند تسجيل الخروج الصريح فقط. */
+const LAST_AUTH_USER_STORAGE_KEY = "daily-sales-last-auth-user-id-v1";
 const SUPABASE_PROJECT_ID = "navqvljmipzheqjmlzgt";
 const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
 const SUPABASE_ANON_KEY =
@@ -143,11 +145,13 @@ const dom = {
   salesSectionCard: document.getElementById("salesSectionCard"),
   ideasSectionCard: document.getElementById("ideasSectionCard"),
   expenseSectionCard: document.getElementById("expenseSectionCard"),
+  personalWalletSectionCard: document.getElementById("personalWalletSectionCard"),
   navSales: document.getElementById("navSales"),
   navProjectHome: document.getElementById("navProjectHome"),
   navDailyLog: document.getElementById("navDailyLog"),
   navIdeasForm: document.getElementById("navIdeasForm"),
   navExpenses: document.getElementById("navExpenses"),
+  navPersonalWallet: document.getElementById("navPersonalWallet"),
   navInvestors: document.getElementById("navInvestors"),
   navWasiyyat: document.getElementById("navWasiyyat"),
   navSummary: document.getElementById("navSummary"),
@@ -214,7 +218,6 @@ const dom = {
   ideaPriceLabel: document.getElementById("ideaPriceLabel"),
   ideaQtyLabel: document.getElementById("ideaQtyLabel"),
   totals: {
-    totalSalesEl: document.getElementById("totalSales"),
     totalProfitEl: document.getElementById("totalProfit"),
     totalReinvestEl: document.getElementById("totalReinvest"),
     totalNetProfitEl: document.getElementById("totalNetProfit"),
@@ -432,21 +435,268 @@ function getPasswordResetOptions() {
   return { redirectTo: `${globalThis.location.origin}${globalThis.location.pathname}` };
 }
 
+/** الصفحة مفتوحة من القرص — طلبات الشبكة نحو Supabase غالبًا تُمنع أو تفشل (أصل null / CORS). */
+function isOpenedAsLocalFile() {
+  return globalThis.location?.protocol === "file:";
+}
+
+/** يُرجع true إذا أُظهرت رسالة ويُفضّل عدم استدعاء واجهة المصادقة. */
+function stopAuthIfLocalFile() {
+  if (!isOpenedAsLocalFile()) return false;
+  setAuthStatus(
+    "لا يعمل تسجيل الدخول من مسار ملف (file://): المتصفّح يقيّد الاتصال بخوادم Gmail/Supabase. من مجلد المشروع شغّل خادمًا محليًا ثم افتح الرابط من http:// — مثال: npx --yes serve -l 5173 ثم http://localhost:5173 أو: py -m http.server 5173",
+    false
+  );
+  log("warn", "auth_blocked_file_protocol", {});
+  return true;
+}
+
 function getSupabaseStorageKey() {
   return `sb-${SUPABASE_PROJECT_ID}-auth-token`;
 }
 
-function readStoredSessionTokens() {
+/** يقرأ معرف المستخدم من access_token JWT دون تحقّق؛ يُستعمل فقط لفتح مسار التخزين المحلي بعد F5 أو عطل الشبكة. */
+function decodeJwtSub(accessToken) {
+  if (!accessToken || typeof accessToken !== "string") return null;
+  const parts = accessToken.split(".");
+  if (parts.length < 2) return null;
   try {
-    const raw = localStorage.getItem(getSupabaseStorageKey());
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const session = parsed?.currentSession || parsed?.session || parsed;
-    if (!session?.access_token || !session?.refresh_token) return null;
-    return { access_token: session.access_token, refresh_token: session.refresh_token };
+    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64.length % 4;
+    if (pad) b64 += "====".slice(pad);
+    const json = globalThis.atob(b64);
+    const payload = JSON.parse(json);
+    const sub = payload?.sub;
+    return typeof sub === "string" && sub.length > 0 ? sub : null;
   } catch {
     return null;
   }
+}
+
+function parseStoredSessionTokensFromRaw(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const session = parsed?.currentSession || parsed?.session || parsed;
+  if (!session?.access_token || !session?.refresh_token) return null;
+  return { access_token: session.access_token, refresh_token: session.refresh_token };
+}
+
+/**
+ * Supabase يخزّن الجلسة أحيانًا كـ JSON واحد، وأحيانًا على مقاطع `sb-…-auth-token.0`, `.1` …
+ * قراءة المفتاح الاسمي فقط دون دمج المقاطع يجعل النظام يعتقد أنك غير مسجّل بعد Ctrl+R فيُصفَّر المحتوى.
+ */
+function collectSupabaseAuthBaseKeysFromStorage() {
+  const bases = new Set([getSupabaseStorageKey()]);
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      const m = k.match(/^(sb-[\w.-]+-auth-token)(?:\.\d+)?$/);
+      if (m) bases.add(m[1]);
+    }
+  } catch (_) {}
+  return [...bases];
+}
+
+function readReassembledSupabaseAuthRawForBase(baseKey) {
+  const whole = localStorage.getItem(baseKey);
+  if (whole != null && whole !== "") return whole;
+  let idx = 0;
+  const parts = [];
+  for (;;) {
+    const part = localStorage.getItem(`${baseKey}.${idx}`);
+    if (part == null || part === "") break;
+    parts.push(part);
+    idx += 1;
+    if (idx > 64) break;
+  }
+  return parts.length ? parts.join("") : null;
+}
+
+function readStoredSessionTokens() {
+  try {
+    for (const base of collectSupabaseAuthBaseKeysFromStorage()) {
+      const raw = readReassembledSupabaseAuthRawForBase(base);
+      const t = parseStoredSessionTokensFromRaw(raw);
+      if (t) return t;
+    }
+  } catch (_) {}
+  return null;
+}
+
+/** يقرأ access_token من جلسة GoTrue المخزّنة حتى لو تعذّر إكمال `refresh_token` لدى JSON (لا يعتمد ذلك على تأكيد الخادم). */
+function readStoredAccessTokenLoose() {
+  try {
+    for (const base of collectSupabaseAuthBaseKeysFromStorage()) {
+      const raw = readReassembledSupabaseAuthRawForBase(base);
+      if (!raw) continue;
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      const session = parsed?.currentSession || parsed?.session || parsed;
+      const access = session?.access_token;
+      if (typeof access === "string" && access.includes(".")) return access;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function persistLastKnownAuthUserId(userId) {
+  const id = userId ? String(userId).trim() : "";
+  if (!id) return;
+  try {
+    localStorage.setItem(LAST_AUTH_USER_STORAGE_KEY, id);
+  } catch (_) {}
+}
+
+function readLastKnownAuthUserId() {
+  try {
+    const s = localStorage.getItem(LAST_AUTH_USER_STORAGE_KEY);
+    const id = s ? String(s).trim() : "";
+    return id || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearLastKnownAuthUserId() {
+  try {
+    localStorage.removeItem(LAST_AUTH_USER_STORAGE_KEY);
+  } catch (_) {}
+}
+
+function userLikelyHasLocalDatastore(userId) {
+  if (!userId) return false;
+  const suffix = `:${userId}`;
+  const keys = [
+    `${STORAGE_KEY}${suffix}`,
+    `${IDEAS_STORAGE_KEY}${suffix}`,
+    `${EXPENSES_STORAGE_KEY}${suffix}`,
+    `${WASIYYAT_STORAGE_KEY}${suffix}`,
+    `${INVESTORS_STORAGE_KEY}${suffix}`,
+    `${PERSONAL_WALLET_STORAGE_KEY}${suffix}`,
+    `${DELETION_LOG_KEY}${suffix}`
+  ];
+  try {
+    for (const k of keys) {
+      const raw = localStorage.getItem(k);
+      if (raw && raw !== "[]" && raw !== "null" && raw.length > 8) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+/**
+ * بيانات محفوظة دون جلسة Supabase (مثلاً طُفِيَت الرموز لكن بقيت daily-sales / الطوارئ).
+ * يمنع شاشة «دخول» فارغة بعد Ctrl+R مع بقاء الملفات في المتصفّح.
+ */
+async function trySalvageGuestOrOfflineDatastore(reason) {
+  if (readStoredSessionTokens() || readStoredAccessTokenLoose()) return false;
+
+  const prevUser = state.currentUser;
+  state.currentUser = null;
+  let salesLoad;
+  try {
+    salesLoad = loadSalesFromAllLocalSnapshots();
+  } catch {
+    salesLoad = { list: [], sources: 0 };
+  }
+
+  const ideas = loadIdeas();
+  const expenses = loadExpenses();
+  const personalWallet = loadPersonalWallet();
+  const investors = loadInvestors();
+  const wasiyyat = loadWasiyyat();
+  const deletionLog = loadDeletionLog();
+
+  state.currentUser = null;
+
+  const hasAny =
+    (salesLoad.list && salesLoad.list.length > 0) ||
+    ideas.length > 0 ||
+    expenses.length > 0 ||
+    investors.length > 0 ||
+    wasiyyat.length > 0 ||
+    (Number(personalWallet) || 0) > 0 ||
+    (Array.isArray(deletionLog) && deletionLog.length > 0);
+
+  if (!hasAny) {
+    state.currentUser = prevUser;
+    return false;
+  }
+
+  state.records = salesLoad.list || [];
+  state.ideas = ideas;
+  state.expenses = expenses;
+  state.personalWallet = personalWallet;
+  state.investors = investors;
+  state.wasiyyat = wasiyyat;
+  state.deletionLog = Array.isArray(deletionLog) ? deletionLog : [];
+  authTrace("refresh_session:guest_local_salvage", { reason });
+
+  try {
+    ensureAllSalesRecordsHaveIds();
+  } catch (_) {}
+
+  try {
+    if (state.records.length > 0) saveRecords();
+  } catch (_) {}
+
+  setPageMode(true);
+  forceShowApp();
+  setAppEnabled(true);
+  setAuthStatus(
+    "عُرضت بيانات محفوظة على هذا الجهاز بينما لم تُستعد جلسة Gmail بعد التحديث. استخدم «دخول» لاستعادة المزامنة السحابية.",
+    false
+  );
+  setSyncStatus("وضع عرض محلي مؤقت — سجّل الدخول لربط البيانات بـ Supabase.", false);
+  renderSalesAppShell();
+  return true;
+}
+
+async function tryActivateFromLastKnownLocalUser(reason) {
+  const id = readLastKnownAuthUserId();
+  if (!id) return false;
+  if (readStoredSessionTokens() || readStoredAccessTokenLoose()) return false;
+  if (!userLikelyHasLocalDatastore(id)) return false;
+  authTrace("refresh_session:last_known_user_local_fallback", {
+    reason: reason || null,
+    user: safeUserIdForLog(id)
+  });
+  await activateAppForUser({ id });
+  setSyncStatus(
+    "لم تُكتشف جلسة Supabase في المتصفّح؛ عُرضت بيانات آخر حساب محفوظة على هذا الجهاز فقط.",
+    false
+  );
+  setAuthStatus("وضع محلي بدون تأكيد سحابي — استخدم «دخول» لمزامنة آمنة مع الخادم.", true);
+  return true;
+}
+
+async function tryActivateFromStoredJwtUserStub(reason) {
+  const access =
+    readStoredSessionTokens()?.access_token || readStoredAccessTokenLoose();
+  if (!access) return false;
+  const sub = decodeJwtSub(access);
+  if (!sub) return false;
+  authTrace("refresh_session:jwt_stub_activate", {
+    reason: reason || null,
+    user: safeUserIdForLog(sub)
+  });
+  await activateAppForUser({ id: sub });
+  setSyncStatus(
+    "تعرّف النظام على حسابك من الجهاز (جلسة غير أُؤكَّد بالكامل من الخادم). بياناتك المحلية مفتوحة — أعد المحاولة لاحقًا أو من «دخول» إن لزم المزامنة.",
+    false
+  );
+  setAuthStatus("البيانات مفتوحة من الجهاز. إن ظهر نقصًا في السّحابة أعد تحميل الصفحة أو سجّل الدخول مرة أخرى.", true);
+  return true;
 }
 
 
@@ -496,6 +746,7 @@ const SIDEBAR_NAV_IDS = [
   "navDailyLog",
   "navIdeasForm",
   "navExpenses",
+  "navPersonalWallet",
   "navWasiyyat",
   "navInvestors",
   "navSummary",
@@ -592,6 +843,7 @@ function setActiveSection(section) {
   const isIdeas = view === "ideas";
 
   dom.expenseSectionCard?.classList.add("hidden-section");
+  dom.personalWalletSectionCard?.classList.add("hidden-section");
 
   dom.salesSectionCard?.classList.toggle("hidden-section", !isSales);
   dom.ideasSectionCard?.classList.toggle("hidden-section", !isIdeas);
@@ -630,6 +882,7 @@ function setMainView(view) {
   dom.investorsSection?.classList.toggle("hidden", view !== "investors");
   dom.wasiyyatSection?.classList.toggle("hidden", view !== "wasiyyat");
   dom.expenseSectionCard?.classList.toggle("hidden-section", view !== "expenses");
+  dom.personalWalletSectionCard?.classList.toggle("hidden-section", view !== "wallet");
 
   if (view === "daily") setSidebarNavActive("navDailyLog");
   else if (view === "summary") setSidebarNavActive("navSummary");
@@ -637,11 +890,13 @@ function setMainView(view) {
   else if (view === "investors") setSidebarNavActive("navInvestors");
   else if (view === "wasiyyat") setSidebarNavActive("navWasiyyat");
   else if (view === "expenses") setSidebarNavActive("navExpenses");
+  else if (view === "wallet") setSidebarNavActive("navPersonalWallet");
 
   updateBottomNavActive(view);
 }
 
 function applySignedOutState(message = "تم تسجيل الخروج.") {
+  clearLastKnownAuthUserId();
   state.currentUser = null;
   state.records = [];
   state.ideas = [];
@@ -673,7 +928,7 @@ function renderSalesAppShell() {
   renderIdeasPreview();
 }
 
-async function activateAppForUser(user, statusSuffix = "") {
+async function activateAppForUser(user, statusSuffix = "", activateOptions = {}) {
   if (!user) return;
   const prev = __salesActivateTail;
   let unlock;
@@ -682,15 +937,21 @@ async function activateAppForUser(user, statusSuffix = "") {
   });
   await prev.catch(() => {});
   try {
-    await activateAppSerialized(user, statusSuffix);
+    await activateAppSerialized(user, statusSuffix, activateOptions);
   } finally {
     unlock();
   }
 }
 
-async function activateAppSerialized(user, statusSuffix = "") {
-  authTrace("activate_app:start", { userId: user?.id || null, statusSuffix });
+async function activateAppSerialized(user, statusSuffix = "", activateOptions = {}) {
+  const deferCloudUpsert = activateOptions?.deferCloudUpsertToBackground === true;
+  authTrace("activate_app:start", {
+    userId: user?.id || null,
+    statusSuffix,
+    deferCloudUpsert
+  });
   state.currentUser = user;
+  if (user?.id) persistLastKnownAuthUserId(user.id);
 
   setPageMode(true);
   forceShowApp();
@@ -764,9 +1025,8 @@ async function activateAppSerialized(user, statusSuffix = "") {
       authTrace("activate_app:remote_fetch_failed_use_local_only", { count: state.records.length });
       setSyncStatus("تعذّر جلب السَحَابة الآن؛ وُضِعت بيانات جهازك (تحديث الصفحة لا يمسح المحلي).", false);
     } else if (remote.length === 0 && local.length > 0) {
-      await upsertManyRemote(local);
       state.records = local;
-      authTrace("activate_app:using_local_and_uploaded", { count: local.length });
+      authTrace("activate_app:using_local_then_bg_upload", { count: local.length });
     } else {
       state.records = mergeSalesListsLocalRemote(remote, local);
       authTrace("activate_app:merged_remote_local", {
@@ -786,9 +1046,6 @@ async function activateAppSerialized(user, statusSuffix = "") {
     }
 
     ensureAllSalesRecordsHaveIds();
-    if (state.db && !isSalesClearPending() && state.records.length > 0) {
-      await upsertManyRemote(state.records);
-    }
     const skipSaveWhilePendingEmpty = isSalesClearPending() && state.records.length === 0;
     if (!skipSaveWhilePendingEmpty) {
       saveRecords();
@@ -803,6 +1060,13 @@ async function activateAppSerialized(user, statusSuffix = "") {
     }
     renderSalesAppShell();
     authTrace("activate_app:ui_synced", { records: state.records.length });
+
+    /** من الدخول: نفعِّل الواجهة قبل انتهاء رفع كل الصفوف. من التحديث/التهيئة: ننتظر الدفعات حتى تناسق أسرع مع السّحابة */
+    if (deferCloudUpsert) void activateCloudUploadAfterLoginOpen();
+    else if (state.db && !isSalesClearPending() && state.records.length > 0) {
+      const okChunk = await upsertManyRemoteChunked(state.records.slice(), 75);
+      if (!okChunk) setSyncStatus("البيانات مفتوحة؛ تعذّر إكمال المزامنة الكاملة — تحقّق من الشبكة.", false);
+    }
   } catch (err) {
     authTrace("activate_app:sync_error", { message: err?.message || "unknown" });
     if (state.currentUser && state.records.length === 0) {
@@ -1119,6 +1383,23 @@ function coerceSalePayload(value) {
     }
   }
   return null;
+}
+
+/** بعد الدخول: لا نحبس شاشة المصادقة حتى انتهاء رفع كل المبيعات — الرفع بالدُفعات في الخلفية */
+async function activateCloudUploadAfterLoginOpen() {
+  if (!state.db || !state.currentUser || isSalesClearPending()) return;
+  const snap = state.records;
+  if (!snap.length) return;
+  const list = snap.slice();
+  setSyncStatus("جاري المزامنة مع السحابة في الخلفية (لا تغلق التبويب بسرعة)…", false);
+  try {
+    const ok = await upsertManyRemoteChunked(list, 75);
+    if (ok) setSyncStatus("اكتمل حفظ نسختك على السحابة.", true);
+    else setSyncStatus("البيانات مفتوحة محليًا؛ لم يكتمل كل الرفع — تحقّق من الشبكة أو حدّث الصفحة لاحقًا.", false);
+  } catch (err) {
+    log("warn", "activate_cloud_bg_error", String(err?.message || err));
+    setSyncStatus(`مزامنة خلفية: ${String(err?.message || err)}`, false);
+  }
 }
 
 async function upsertManyRemoteChunked(fullList, chunkSize = 75) {
@@ -1490,7 +1771,8 @@ function bindSalesFlushOnPageHide() {
   globalThis.__dailySalesPageHideBound = true;
   const flush = () => {
     try {
-      if (!state.currentUser || state.records.length === 0) return;
+      /** لا نربط الحفظ بوجود حساب؛ الضيف/الجلسة المعلّقة تُستخدم مفتاح daily-sales بدون معرف أيضًا */
+      if (state.records.length === 0) return;
       const payload = JSON.stringify(state.records);
       localStorage.setItem(userStorageKey(), payload);
       localStorage.setItem(persistentDeviceSalesKey(), payload);
@@ -1970,7 +2252,6 @@ function render() {
     return;
   }
   dom.rowsContainer.innerHTML = "";
-  let totalSales = 0;
   let totalProfit = 0;
   let totalReinvest = 0;
   let totalNetProfit = 0;
@@ -1986,7 +2267,6 @@ function render() {
       record.recordId = newRecordId();
       saleIdsBackfilled = true;
     }
-    totalSales += record.totalSale;
     totalProfit += record.profit;
     totalReinvest += record.reinvest;
     totalNetProfit += record.netProfit;
@@ -2033,7 +2313,6 @@ function render() {
 
   if (saleIdsBackfilled) saveRecords();
 
-  dom.totals.totalSalesEl.textContent = currency(totalSales);
   dom.totals.totalProfitEl.textContent = currency(totalProfit);
   dom.totals.totalReinvestEl.textContent = currency(totalReinvest);
   dom.totals.totalNetProfitEl.textContent = currency(totalNetProfit);
@@ -2140,10 +2419,24 @@ function renderFinanceHub() {
   if (inp && document.activeElement !== inp) {
     inp.value = wallet > 0 ? String(wallet) : "";
   }
+  const expTotRef = document.getElementById("hubPersonalExpenseTotalRef");
+  if (expTotRef) expTotRef.textContent = currency(expSum);
+
   const remEl = document.getElementById("hubPersonalRemaining");
   if (remEl) {
     remEl.textContent = currency(walletAfterExpenses);
     remEl.classList.toggle("finance-hub-remaining--warn", walletAfterExpenses < 0);
+  }
+
+  const sidebarRem = document.getElementById("sidebarPersonalRemaining");
+  if (sidebarRem) {
+    if (!state.currentUser) {
+      sidebarRem.textContent = "—";
+      sidebarRem.classList.remove("wallet-sidebar-warn");
+    } else {
+      sidebarRem.textContent = currency(walletAfterExpenses);
+      sidebarRem.classList.toggle("wallet-sidebar-warn", walletAfterExpenses < 0);
+    }
   }
 }
 
@@ -2381,7 +2674,23 @@ function renderInsights() {
 // =========================
 // Auth flow
 // =========================
-async function refreshSessionState() {
+
+/** كل عمل قراءة/تفعيل الجلسة يمر عبر هذا الطابور لمنع سباق INITIAL_SESSION مقابل تهيئة init() أو طلب متزامن يصفِّر الواجهة أثناء التحميل */
+let __sessionOpChain = Promise.resolve();
+
+function enqueueSessionOperation(label, fn) {
+  const run = __sessionOpChain.then(() => fn());
+  __sessionOpChain = run.catch((err) => {
+    log("warn", "session_op_failed", { label, message: err?.message || String(err) });
+  });
+  return run;
+}
+
+function refreshSessionState() {
+  return enqueueSessionOperation("refreshSessionState", refreshSessionStateImpl);
+}
+
+async function refreshSessionStateImpl() {
   authTrace("refresh_session:start", { hasDb: !!state.db });
   if (!state.db) {
     const cfgError = validateSupabaseConfig();
@@ -2391,40 +2700,72 @@ async function refreshSessionState() {
     return;
   }
 
+  await new Promise((r) => globalThis.queueMicrotask(r));
+
   let { data, error } = await state.db.auth.getSession();
   if (error) {
     authTrace("refresh_session:get_session_error", { message: error.message, status: error.status || null, code: error.code || null });
+    if (await tryActivateFromStoredJwtUserStub("getSession_error")) return;
+    if (await tryActivateFromLastKnownLocalUser("getSession_error")) return;
+    if (await trySalvageGuestOrOfflineDatastore("getSession_error")) return;
     setAuthStatus(`فشل قراءة الجلسة: ${error.message}`, false);
     setPageMode(false);
     setAppEnabled(false);
     return;
   }
 
-  if (!data?.session) {
+  async function tryPersistedSessionIntoClient() {
+    if (data?.session) return;
     const storedTokens = readStoredSessionTokens();
-    if (storedTokens) {
-      authTrace("refresh_session:try_restore_from_storage", {});
-      const restored = await state.db.auth.setSession(storedTokens);
-      if (!restored.error && restored.data?.session) {
-        data = restored.data;
-        authTrace("refresh_session:restored_from_storage", { userId: restored.data.session.user?.id || null });
-      } else if (restored.error) {
-        authTrace("refresh_session:restore_failed", { message: restored.error.message, status: restored.error.status || null, code: restored.error.code || null });
-      }
+    if (!storedTokens) return;
+    authTrace("refresh_session:try_restore_from_storage", {});
+    const restored = await state.db.auth.setSession(storedTokens);
+    if (!restored.error && restored.data?.session) {
+      data = restored.data;
+      authTrace("refresh_session:restored_from_storage", { userId: restored.data.session.user?.id || null });
+    } else if (restored.error) {
+      authTrace("refresh_session:restore_failed", {
+        message: restored.error.message,
+        status: restored.error.status || null,
+        code: restored.error.code || null
+      });
     }
   }
 
-  state.currentUser = data.session?.user ?? null;
+  await tryPersistedSessionIntoClient();
+
+  /** سباق تهيئة Supabase بعد F5؛ عدة محاولات + إعادة setSession قبل القبول بتصفير الحالة */
+  const retryDelaysMs = [50, 140, 300, 600, 1200, 2000];
+  for (const ms of retryDelaysMs) {
+    if (data?.session) break;
+    await new Promise((r) => globalThis.setTimeout(r, ms));
+    const probe = await state.db.auth.getSession();
+    if (!probe.error && probe.data?.session) {
+      data = probe.data;
+      break;
+    }
+    await tryPersistedSessionIntoClient();
+  }
+
+  state.currentUser = data?.session?.user ?? null;
   if (!state.currentUser) {
+    if (await tryActivateFromStoredJwtUserStub("no_supabase_session_after_retries")) return;
+    if (await tryActivateFromLastKnownLocalUser("no_supabase_session_after_retries")) return;
+    if (await trySalvageGuestOrOfflineDatastore("no_supabase_session_after_retries")) return;
     authTrace("refresh_session:no_user", {});
     state.records = [];
     state.ideas = [];
     state.expenses = [];
+    state.investors = [];
     state.wasiyyat = [];
+    state.deletionLog = [];
+    state.personalWallet = 0;
     render();
     renderIdeas();
     renderExpenses();
+    renderInvestors();
     renderWasiyyat();
+    renderDeletionLog();
     setPageMode(false);
     setAppEnabled(false);
     setAuthStatus("أدخل Gmail وكلمة المرور ثم اضغط دخول.", false);
@@ -2456,7 +2797,8 @@ async function runAuthAction(actionName, action) {
 }
 
 async function handleLogin() {
-  setAuthStatus("جاري تسجيل الدخول...", false);
+  if (stopAuthIfLocalFile()) return;
+  setAuthStatus("جاري التحقق من Gmail مع الخادم… (يعتمد على سرعة الشبكة)", false);
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
   const { email, password } = getAuthCredentials();
@@ -2472,11 +2814,13 @@ async function handleLogin() {
     }
     if (!data?.user) return setAuthStatus("تمت المحاولة لكن لم تصل بيانات مستخدم. حاول مرة أخرى.", false);
     authTrace("login:success", { userId: data.user.id || null });
-    await activateAppForUser(data.user);
+    setAuthStatus("تم قبول حسابك — جاري تحميل بيانات الجهاز والسّحابة…", true);
+    await activateAppForUser(data.user, "", { deferCloudUpsertToBackground: true });
   });
 }
 
 async function handleSignup() {
+  if (stopAuthIfLocalFile()) return;
   setAuthStatus("جاري إنشاء الحساب...", false);
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
@@ -2499,11 +2843,13 @@ async function handleSignup() {
       return;
     }
     authTrace("signup:success", { userId: data?.session?.user?.id || null });
-    await activateAppForUser(data.session.user);
+    setAuthStatus("تم إنشاء الجلسة — جاري تحميل بياناتك…", true);
+    await activateAppForUser(data.session.user, "", { deferCloudUpsertToBackground: true });
   });
 }
 
 async function handlePasswordReset() {
+  if (stopAuthIfLocalFile()) return;
   setAuthStatus("جاري إرسال رابط استرجاع كلمة المرور...", false);
   const emailValidation = validateEmailOnly();
   if (!emailValidation.ok) return setAuthStatus(emailValidation.message, false);
@@ -2533,7 +2879,7 @@ function bindAuthEvents() {
     await handleLogin();
   });
   dom.loginBtn?.addEventListener("click", () => {
-    if (!state.authBusy) setAuthStatus("تم الضغط على دخول... جاري التحقق.", false);
+    if (!state.authBusy) setAuthStatus("جاري بدء المصادقة…", false);
   });
   dom.signupBtn?.addEventListener("click", async () => {
     authTrace("event:click_signup", {});
@@ -2561,7 +2907,7 @@ function bindAuthEvents() {
 // =========================
 // App init and event wiring
 // =========================
-function init() {
+async function init() {
   if (__dailySalesInitOnce) {
     log("warn", "init_ignored_already_ran", {});
     return;
@@ -2587,11 +2933,14 @@ function init() {
         user: safeUserIdForLog(session?.user?.id)
       });
 
-      // INITIAL_SESSION may be null momentarily in some environments; avoid overriding UI state.
+      /**
+       * INITIAL_SESSION لا يحمِّل البيانات هنا — ذلك يفسِّر تجربة F5 حيث كان activate يعمل بالتوازي مع refreshSessionState() فيخلو getSession ثم يُصفَّر كل شيء.
+       * التحميل الموحّد: refreshSessionState() عبر enqueueSessionOperation (نهاية init() + TOKEN_REFRESHED…).
+       */
       if (event === "INITIAL_SESSION") return;
 
       if (event === "SIGNED_IN" && session?.user) {
-        await activateAppForUser(session.user);
+        await refreshSessionState();
         return;
       }
 
@@ -2670,6 +3019,11 @@ function init() {
   });
   dom.navExpenses?.addEventListener("click", () => {
     setMainView("expenses");
+    scrollToPanel(dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  });
+  dom.navPersonalWallet?.addEventListener("click", () => {
+    setMainView("wallet");
     scrollToPanel(dom.workspaceTop);
     closeSidebarDrawerIfMobile();
   });
@@ -3078,7 +3432,7 @@ function init() {
 
   refreshAuthButtons();
   setAuthStatus("النظام جاهز. يمكنك تسجيل الدخول أو إنشاء حساب.", true);
-  refreshSessionState();
+  await refreshSessionState();
   syncIdeaTypeUi();
   renderIdeasPreview();
   renderInvestors();
@@ -3091,10 +3445,16 @@ function bootstrap() {
   // Always bind auth buttons first, even if init later hits an error.
   bindAuthEvents();
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init, { once: true });
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        void init();
+      },
+      { once: true }
+    );
     return;
   }
-  init();
+  void init();
 }
 
 bootstrap();
