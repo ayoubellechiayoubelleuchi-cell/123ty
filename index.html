@@ -357,6 +357,12 @@
       background: rgba(0, 0, 0, 0.25);
       border: 1px solid var(--stroke);
     }
+
+    /** يظهر فوق كل الأقسام (الإعدادات، السجل…) — لم نعد نخفي المزامنة داخل بطاقة البيع */
+    .sync-status--global {
+      margin: 0 0 16px;
+    }
+
     .sync-status.ok { color: #86efac; border-color: rgba(34, 197, 94, 0.35); background: rgba(22, 163, 74, 0.12); }
 
     .form-section {
@@ -1540,12 +1546,12 @@
     <main class="main-workspace">
       <div class="workspace-inner" id="workspaceTop">
         <h1 class="workspace-title">مشروعي</h1>
+        <div id="syncStatus" class="sync-status sync-status--global" aria-live="polite" role="status">جاهز.</div>
 
         <div class="form-stack">
           <div class="panel-card hidden-section" id="salesSectionCard">
             <h1>تسجيل بيع جديد</h1>
             <p class="lead">سجّل البيع اليومي؛ يُحسب الربح وإعادة الاستثمار 10% والربح الصافي تلقائيًا.</p>
-            <div id="syncStatus" class="sync-status">جاهز.</div>
 
             <form id="saleForm">
               <div class="grid">
@@ -1998,6 +2004,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260503l"></script>
+  <script defer src="./app.js?v=20260503r"></script>
 </body>
 </html>

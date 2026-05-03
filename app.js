@@ -20,7 +20,7 @@ const SUPABASE_TABLE = "sales_records";
  * 1) dom + state — عناصر الصفحة والحالة الحية.
  * 2) Auth + activateAppForUser — تسجيل الدخول وجلب/دمج المبيعات مع Supabase.
  * 3) سجلات المبيعات — load/saveRecords، merge، computeRecord، render.
- * 4) الإعدادات — recoverSalesMergeFromDeviceAndCloud (استعادة من الجهاز+السحابة) ومسح السجلات في init().
+ * 4) الإعدادات — recoverSalesMergeFromDeviceAndCloud (استعادة من الجهاز+السحابة) ومسح السجلات؛ تهيئة المستمعات في init()/bootstrap().
  */
 const LOG_PREFIX = "[daily-sales]";
 const AUTH_MESSAGES = {
@@ -40,17 +40,68 @@ function log(level, event, data) {
   else console.info(line, payload);
 }
 
-function authTrace(step, data) {
-  const payload = data === undefined ? "" : data;
-  console.info(`[auth-trace] ${step}`, payload);
-}
-
 function safeEmailForLog(email) {
   const e = String(email || "");
   const at = e.indexOf("@");
   if (at <= 1) return e ? `${e[0]}***` : "";
   return `${e[0]}***@${e.slice(at + 1)}`;
 }
+
+/** يمنع ظهور معرف الحساب كاملًا أو مفاتيح localStorage الحسّاسة في سجل المتصفّح */
+function safeUserIdForLog(id) {
+  const s = String(id || "").trim();
+  if (!s) return null;
+  if (s.length <= 12) return "…";
+  return `${s.slice(0, 8)}…`;
+}
+
+function safeRecordIdForLog(recordId) {
+  const s = String(recordId || "").trim();
+  if (!s) return null;
+  if (s.length <= 12) return "…";
+  return `${s.slice(0, 8)}…`;
+}
+
+function redactStorageKeyForLog(key) {
+  const k = String(key || "");
+  const m = k.match(/^(.+:)([\da-f-]{24,})$/i);
+  if (m) return `${m[1]}<redacted>`;
+  return k.length > 40 ? `${k.slice(0, 24)}…` : k;
+}
+
+/** تشخيص تسجيل الدخول في الـ console فقط عند ?debugAuth=1 أو sessionStorage.debugAuth=\"1\". */
+function isDebugAuthTraceEnabled() {
+  try {
+    if (globalThis.sessionStorage?.getItem("debugAuth") === "1") return true;
+    if (typeof globalThis.location?.search === "string") return globalThis.location.search.includes("debugAuth=1");
+  } catch (_) {}
+  return false;
+}
+
+function authTrace(step, data) {
+  if (!isDebugAuthTraceEnabled()) return;
+  const payload = data === undefined ? "" : data;
+  console.info(`[auth-trace] ${step}`, payload);
+}
+
+/** مهلة شبكة؛ بدونها قد لا يعود await فيُعلق زر «جاري الاستعادة» ولن يُنفَّذ finally */
+function withTimeoutMs(promise, ms, errorMessage = "انتهت مهلة الانتظار") {
+  let timeoutId = null;
+  const settled = Promise.resolve(promise);
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => reject(new Error(errorMessage)), ms);
+  });
+  return Promise.race([settled, timeoutPromise]).finally(() => {
+    if (timeoutId != null) globalThis.clearTimeout(timeoutId);
+  });
+}
+
+const RECOVER_SALES_BTN_IDLE_AR = "استعادة المبيعات من الجهاز والسحابة";
+const RECOVER_SALES_BTN_BUSY_AR = "جاري الاستعادة…";
+/** مهلة لكل عمل الدمج والحفظ والعرض (ما عدا رفع السحابة الخلفي) */
+const RECOVER_SALES_MERGE_DEADLINE_MS = 50000;
+/** إن عُلِّقَ التنفيذ المتزامن فلا يصل إلى finally — نُعيد الزر يدويًا */
+const RECOVER_SALES_UI_SAFETY_MS = 56000;
 
 const dom = {
   form: document.getElementById("saleForm"),
@@ -179,6 +230,9 @@ const dom = {
   }
 };
 
+/** يمنع تسجيل المستمعات مرتين إن اُستدعيَ init() أكثر من مرة (خطأ أو إعادة تحميل جزئية) */
+let __dailySalesInitOnce = false;
+
 const state = {
   db: null,
   currentUser: null,
@@ -257,14 +311,14 @@ function validateSupabaseConfig() {
 function setAuthStatus(text, ok = false) {
   dom.authStatus.textContent = text;
   dom.authStatus.classList.toggle("ok", ok);
-  log("info", "auth_status", { text, ok });
+  log("info", "auth_status", { ok });
 }
 
 function setSyncStatus(text, ok = false) {
   if (!dom.syncStatus) return;
   dom.syncStatus.textContent = text;
   dom.syncStatus.classList.toggle("ok", ok);
-  log("info", "sync_status", { text, ok });
+  log("info", "sync_status", { ok });
 }
 
 function setAuthBusy(isBusy) {
@@ -418,14 +472,18 @@ function forceShowApp() {
 }
 
 function setAppEnabled(enabled) {
-  for (const el of dom.form.querySelectorAll("input, textarea, button")) el.disabled = !enabled;
+  if (dom.form) {
+    for (const el of dom.form.querySelectorAll("input, textarea, button")) el.disabled = !enabled;
+  }
   if (dom.wasiyyatForm) {
     for (const el of dom.wasiyyatForm.querySelectorAll("input, textarea, button")) el.disabled = !enabled;
   }
-  for (const btn of dom.rowsContainer.querySelectorAll("button[data-debt-paid]")) btn.disabled = !enabled;
-  for (const btn of dom.rowsContainer.querySelectorAll("button[data-sale-edit], button[data-sale-delete]")) btn.disabled = !enabled;
+  if (dom.rowsContainer) {
+    for (const btn of dom.rowsContainer.querySelectorAll("button[data-debt-paid]")) btn.disabled = !enabled;
+    for (const btn of dom.rowsContainer.querySelectorAll("button[data-sale-edit], button[data-sale-delete]")) btn.disabled = !enabled;
+  }
   for (const btn of dom.wasiyyatRowsContainer?.querySelectorAll("button[data-wasiyyat-delete]") ?? []) btn.disabled = !enabled;
-  dom.resetBtn.disabled = !enabled;
+  if (dom.resetBtn) dom.resetBtn.disabled = !enabled;
   if (dom.recoverSalesBtn) dom.recoverSalesBtn.disabled = !enabled;
 }
 
@@ -633,7 +691,7 @@ async function activateAppSerialized(user, statusSuffix = "") {
   setPageMode(true);
   forceShowApp();
   setAppEnabled(true);
-  setAuthStatus(`تم تسجيل الدخول: ${state.currentUser.phone || state.currentUser.id}${statusSuffix}`, true);
+  setAuthStatus(`تم تسجيل الدخول بنجاح${statusSuffix}`, true);
 
   try {
     const localLoad = loadSalesFromAllLocalSnapshots();
@@ -1029,33 +1087,92 @@ function arrayLooksLikeDailySalesRecordsRelaxed(list) {
   return false;
 }
 
-/** دمج جهازي + محتوى حساب محدِّث الآن؛ الحالي يغلب عند تعارض نفس المعرف */
-async function recoverSalesMergeFromDeviceAndCloud() {
-  if (!state.currentUser) {
-    alert("سجّل الدخول أولًا لتربط النسَخ بحسابك.");
-    return;
+/** حمولة صفّ Supabase؛ أحياناً تُعرَض كنص JSON بدلاً من كائن */
+function coerceSalePayload(value) {
+  if (value == null) return null;
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    const t = value.trim();
+    if (!t) return null;
+    try {
+      const p = JSON.parse(t);
+      return p && typeof p === "object" && !Array.isArray(p) ? p : null;
+    } catch {
+      return null;
+    }
   }
-  if (
-    !confirm(
-      "سنجمع كل نسَخ المبيعات المتاحة في هذا المتصفّح مع السجلّ الحالي ثم ما يمكن جلبُه من السحابة (Supabase). تُدار التكرارات تلقائيًا.\nهل تتابع؟"
-    )
-  ) {
-    return;
-  }
+  return null;
+}
 
+async function upsertManyRemoteChunked(fullList, chunkSize = 75) {
+  if (!state.db || !state.currentUser || !fullList.length) return true;
+  const quietChunks = fullList.length > chunkSize;
+  /** دفعات أوفر + مهلة لكل دفعة تمنع التعليق */
+  const perChunkMs = 32000;
+  for (let i = 0; i < fullList.length; i += chunkSize) {
+    const slice = fullList.slice(i, i + chunkSize);
+    const label = `${i + 1}–${Math.min(i + chunkSize, fullList.length)}`;
+    try {
+      const ok = await withTimeoutMs(
+        upsertManyRemote(slice, { suppressStatus: quietChunks }),
+        perChunkMs,
+        `مهلة رفع الدفعة ${label} (${perChunkMs / 1000} ث)`
+      );
+      if (!ok) return false;
+    } catch (err) {
+      log("warn", "upsert_chunk_timeout_or_fail", { label, message: String(err?.message || err) });
+      return false;
+    }
+  }
+  return true;
+}
+
+/** بعد فك واجهة الاستعادة: رفع غير محجوز حتى لا يبقى الزر معطّلًا */
+async function recoverPushCloudInBackground(rowsSnapshot) {
+  if (!state.db || !state.currentUser || !rowsSnapshot.length) return;
+  try {
+    const ok = await upsertManyRemoteChunked(rowsSnapshot, 75);
+    if (ok) setSyncStatus("اكتمل دمج الاستعادة ورفع السحابة.", true);
+    else
+      setSyncStatus(
+        "اكتمل الدمج محليًا؛ تعذّر إكمال الرفع إلى السحابة (شبكة أو مهلة). أعد تحديث الصفحة أو حاول الاستعادة لاحقًا.",
+        false
+      );
+  } catch (err) {
+    log("warn", "recover_cloud_push_bg_error", String(err?.message || err));
+    setSyncStatus(`اكتمل محليًا؛ تعذّر رفع السحابة: ${String(err?.message || err)}`, false);
+  }
+}
+
+/** جسم عمل الدمج والحفظ والعرض — يُلفّ بمهلة إجمالية حتى لا يبقى زر الاستعادة معلّقًا */
+async function recoverSalesMergeBody() {
+  setSyncStatus("جاري جمع النسَخ المحليّة ثم السحابة…", false);
   const before = state.records.length;
   const salvagePack = loadSalesFromAllLocalSnapshots();
   let merged = mergeSalesListsLocalRemote(salvagePack.list, state.records);
   let remotePullHadRows = false;
   let remotePullFailed = false;
 
-  if (ensureSupabaseClient() && state.db) {
-    const remotePull = await loadRecordsFromRemote({ quiet: true });
-    remotePullFailed = !remotePull.ok;
-    remotePullHadRows = remotePull.records.length > 0;
-    if (remotePull.ok && remotePull.records.length > 0) {
-      merged = mergeSalesListsLocalRemote(remotePull.records, merged);
+  ensureSupabaseClient();
+  if (state.db) {
+    try {
+      const remotePull = await withTimeoutMs(
+        loadRecordsFromRemote({ quiet: true }),
+        20000,
+        "مهلة جلب السحابة (20 ث) — نُكمِل من المحلي."
+      );
+      remotePullFailed = !remotePull.ok;
+      remotePullHadRows = remotePull.records.length > 0;
+      if (remotePull.ok && remotePull.records.length > 0) {
+        merged = mergeSalesListsLocalRemote(remotePull.records, merged);
+      }
+    } catch (e) {
+      remotePullFailed = true;
+      log("warn", "recover_remote_pull_timeout", String(e?.message || e));
     }
+  } else {
+    remotePullFailed = true;
+    log("warn", "recover_sales_no_supabase_client", {});
   }
 
   merged.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.recordId || "").localeCompare(String(a.recordId || "")));
@@ -1066,10 +1183,6 @@ async function recoverSalesMergeFromDeviceAndCloud() {
   renderSalesAppShell();
 
   const n = state.records.length;
-
-  if (state.db && n > 0) {
-    await upsertManyRemote(state.records);
-  }
 
   if (n === 0) {
     setSyncStatus(
@@ -1090,7 +1203,18 @@ async function recoverSalesMergeFromDeviceAndCloud() {
       ? `تم الضم: عندك ${n} عملية (زاد ${gained} عن عدد المعروض سابقًا). راجع «سجل الأيام».`
       : `السجل الآن ${n} عملية؛ لم تُضاف صفوف جديدة (النُّسَخ أو السحابة مطابقة لما لديك أو لا يتوفر إلا هذا العدد).`;
   if (remotePullFailed) msg += " تعذّر جلب جزء السحابة لهذه المحاولة — أُكمِل الدمج المحلي فقط.";
+  const willCloudPush = !!(state.db && n > 0);
+  if (willCloudPush) {
+    msg += " جارٍ رفع السحابة في الخلفية (لن يُعطَّل الزر طويلًا).";
+  }
   setSyncStatus(msg, gained > 0 || remotePullHadRows);
+
+  setMainView("daily");
+  scrollToPanel(dom.dailyLogSection || dom.workspaceTop);
+  closeSidebarDrawerIfMobile();
+
+  const cloudSnapshot = willCloudPush ? state.records.map((r) => ({ ...r })) : [];
+  if (willCloudPush) void recoverPushCloudInBackground(cloudSnapshot);
 
   log("info", "recover_sales_merge_done", {
     salvageSources: salvagePack.sources,
@@ -1098,8 +1222,91 @@ async function recoverSalesMergeFromDeviceAndCloud() {
     before,
     gained,
     remotePullHadRows,
-    remotePullFailed
+    remotePullFailed,
+    cloudPushDeferred: willCloudPush
   });
+}
+
+/** دمج جهازي + محتوى حساب محدِّث الآن؛ الحالي يغلب عند تعارض نفس المعرف */
+async function recoverSalesMergeFromDeviceAndCloud() {
+  if (!state.currentUser) {
+    alert("سجّل الدخول أولًا لتربط النسَخ بحسابك.");
+    return;
+  }
+
+  setSyncStatus(
+    "خطوة الاستعادة: سيظهر مربع تأكيد من المتصفّح في أعلى الصفحة أو الوسط — اختر «موافق» للمتابعة. شريط الحالة هذا يبقى مرئيًا من الإعدادات أيضًا.",
+    false
+  );
+
+  let agreed = false;
+  try {
+    agreed = globalThis.confirm(
+      "سنجمع كل نسَخ المبيعات المتاحة في هذا المتصفّح مع السجلّ الحالي ثم ما يمكن جلبُه من السحابة (Supabase). تُدار التكرارات تلقائيًا.\nهل تتابع؟"
+    );
+  } catch (e) {
+    agreed = true;
+    log("warn", "recover_confirm_threw", String(e?.message || e));
+    setSyncStatus("المتصفّح لم يعرض التأكيد؛ نتابع الاستعادة تلقائيًا.", false);
+  }
+
+  if (!agreed) {
+    setSyncStatus("أُلغيت الاستعادة من نافذة التأكيد.", false);
+    return;
+  }
+
+  const recBtn = dom.recoverSalesBtn;
+  let safetyUiTimer = null;
+
+  function cleanupRecoverSafetyTimer() {
+    if (safetyUiTimer != null) {
+      globalThis.clearTimeout(safetyUiTimer);
+      safetyUiTimer = null;
+    }
+  }
+
+  function idleRecoverSalesButton() {
+    if (recBtn) {
+      recBtn.disabled = false;
+      recBtn.textContent = RECOVER_SALES_BTN_IDLE_AR;
+      recBtn.removeAttribute("aria-busy");
+    }
+    if (state.currentUser) setAppEnabled(true);
+  }
+
+  safetyUiTimer = globalThis.setTimeout(() => {
+    safetyUiTimer = null;
+    if (!recBtn || recBtn.getAttribute("aria-busy") !== "true") return;
+    log("warn", "recover_sales_ui_safety_fire", {});
+    setSyncStatus(
+      "أُعيد زر الاستعادة بعد مهلة طويلة. إذا استمرّ التعليق، حدِّث الصفحة كاملة (Ctrl+Shift+R) وحاول مرّة أخرى.",
+      false
+    );
+    idleRecoverSalesButton();
+  }, RECOVER_SALES_UI_SAFETY_MS);
+
+  if (recBtn) {
+    recBtn.setAttribute("aria-busy", "true");
+    recBtn.disabled = true;
+    recBtn.textContent = RECOVER_SALES_BTN_BUSY_AR;
+  }
+
+  try {
+    await withTimeoutMs(
+      recoverSalesMergeBody(),
+      RECOVER_SALES_MERGE_DEADLINE_MS,
+      "انتهت مهلة الاستعادة — الدمج أو العرض استغرقا أطول من المتوقع. جرّب تحديثًا كاملاً للصفحة ثم أعد المحاولة."
+    );
+  } catch (err) {
+    const m = String(err?.message || err);
+    log("error", "recover_sales_exception", m);
+    setSyncStatus(`تعطلت الاستعادة: ${m}. أعد المحاولة أو انسخ الرسالة لمن يدعمك.`, false);
+    const looksLikeDeadline = /مهلة|انتهت مهلة|timeout/i.test(m);
+    if (!looksLikeDeadline) alert(`تعطلت عملية الاستعادة:\n${m}`);
+  } finally {
+    cleanupRecoverSafetyTimer();
+    idleRecoverSalesButton();
+  }
 }
 
 /**
@@ -1196,7 +1403,11 @@ function loadSalesFromAllLocalSnapshots() {
     keyTrail.push(key);
   }
 
-  log("info", "local_load_merged", { sources: chunks.length, count: acc.length, keysSample: keyTrail.slice(0, 8) });
+  log("info", "local_load_merged", {
+    sources: chunks.length,
+    count: acc.length,
+    keysSample: keyTrail.slice(0, 8).map(redactStorageKeyForLog)
+  });
   return { list: acc, sources: chunks.length };
 }
 
@@ -1249,7 +1460,7 @@ function saveRecords(options = {}) {
   /** إن كانت [] من غير allowEmptyBackup: لا نمسح الطوارئ/النسخ الاحتياطي — قد تبقي آخر قائمة جيّدة */
 
   log("info", "local_save", {
-    key: userStorageKey(),
+    keyHint: redactStorageKeyForLog(userStorageKey()),
     count: state.records.length,
     touchedSafetyStores: state.records.length > 0 || allowEmptyBackup,
     intentionalEmpty: allowEmptyBackup && state.records.length === 0
@@ -1286,10 +1497,10 @@ function loadIdeas() {
     if (!raw) raw = localStorage.getItem(emergencyIdeasKey());
     const parsed = raw ? JSON.parse(raw) : [];
     const list = Array.isArray(parsed) ? parsed : [];
-    log("info", "ideas_local_load", { key: userIdeasStorageKey(), count: list.length });
+    log("info", "ideas_local_load", { keyHint: redactStorageKeyForLog(userIdeasStorageKey()), count: list.length });
     return list;
   } catch {
-    log("warn", "ideas_local_load_failed", { key: userIdeasStorageKey() });
+    log("warn", "ideas_local_load_failed", { keyHint: redactStorageKeyForLog(userIdeasStorageKey()) });
     return [];
   }
 }
@@ -1316,10 +1527,10 @@ function loadExpenses() {
     if (!raw) raw = localStorage.getItem(emergencyExpensesKey());
     const parsed = raw ? JSON.parse(raw) : [];
     const list = normalizeExpensesList(Array.isArray(parsed) ? parsed : []);
-    log("info", "expenses_local_load", { key: userExpensesStorageKey(), count: list.length });
+    log("info", "expenses_local_load", { keyHint: redactStorageKeyForLog(userExpensesStorageKey()), count: list.length });
     return list;
   } catch {
-    log("warn", "expenses_local_load_failed", { key: userExpensesStorageKey() });
+    log("warn", "expenses_local_load_failed", { keyHint: redactStorageKeyForLog(userExpensesStorageKey()) });
     return [];
   }
 }
@@ -1332,7 +1543,7 @@ function saveIdeas(options = {}) {
   if (state.ideas.length > 0 || allowEmptyBackup) {
     localStorage.setItem(backupIdeasStorageKey(), payload);
   }
-  log("info", "ideas_local_save", { key: userIdeasStorageKey(), count: state.ideas.length });
+  log("info", "ideas_local_save", { keyHint: redactStorageKeyForLog(userIdeasStorageKey()), count: state.ideas.length });
 }
 
 function saveExpenses(options = {}) {
@@ -1343,7 +1554,7 @@ function saveExpenses(options = {}) {
   if (state.expenses.length > 0 || allowEmptyBackup) {
     localStorage.setItem(backupExpensesStorageKey(), payload);
   }
-  log("info", "expenses_local_save", { key: userExpensesStorageKey(), count: state.expenses.length });
+  log("info", "expenses_local_save", { keyHint: redactStorageKeyForLog(userExpensesStorageKey()), count: state.expenses.length });
 }
 
 function loadInvestors() {
@@ -1354,10 +1565,10 @@ function loadInvestors() {
     if (!raw) raw = localStorage.getItem(emergencyInvestorsKey());
     const parsed = raw ? JSON.parse(raw) : [];
     const list = Array.isArray(parsed) ? parsed : [];
-    log("info", "investors_local_load", { key: userInvestorsStorageKey(), count: list.length });
+    log("info", "investors_local_load", { keyHint: redactStorageKeyForLog(userInvestorsStorageKey()), count: list.length });
     return list;
   } catch {
-    log("warn", "investors_local_load_failed", { key: userInvestorsStorageKey() });
+    log("warn", "investors_local_load_failed", { keyHint: redactStorageKeyForLog(userInvestorsStorageKey()) });
     return [];
   }
 }
@@ -1370,7 +1581,7 @@ function saveInvestors(options = {}) {
   if (state.investors.length > 0 || allowEmptyBackup) {
     localStorage.setItem(backupInvestorsStorageKey(), payload);
   }
-  log("info", "investors_local_save", { key: userInvestorsStorageKey(), count: state.investors.length });
+  log("info", "investors_local_save", { keyHint: redactStorageKeyForLog(userInvestorsStorageKey()), count: state.investors.length });
 }
 
 function loadWasiyyat() {
@@ -1381,10 +1592,10 @@ function loadWasiyyat() {
     if (!raw) raw = localStorage.getItem(emergencyWasiyyatKey());
     const parsed = raw ? JSON.parse(raw) : [];
     const list = Array.isArray(parsed) ? parsed : [];
-    log("info", "wasiyyat_local_load", { key: userWasiyyatStorageKey(), count: list.length });
+    log("info", "wasiyyat_local_load", { keyHint: redactStorageKeyForLog(userWasiyyatStorageKey()), count: list.length });
     return list;
   } catch {
-    log("warn", "wasiyyat_local_load_failed", { key: userWasiyyatStorageKey() });
+    log("warn", "wasiyyat_local_load_failed", { keyHint: redactStorageKeyForLog(userWasiyyatStorageKey()) });
     return [];
   }
 }
@@ -1397,7 +1608,7 @@ function saveWasiyyat(options = {}) {
   if (state.wasiyyat.length > 0 || allowEmptyBackup) {
     localStorage.setItem(backupWasiyyatStorageKey(), payload);
   }
-  log("info", "wasiyyat_local_save", { key: userWasiyyatStorageKey(), count: state.wasiyyat.length });
+  log("info", "wasiyyat_local_save", { keyHint: redactStorageKeyForLog(userWasiyyatStorageKey()), count: state.wasiyyat.length });
 }
 
 function loadDeletionLog() {
@@ -1418,7 +1629,7 @@ function saveDeletionLog() {
 async function loadRecordsFromRemote(options = {}) {
   const { quiet = false } = options;
   if (!state.db || !state.currentUser) return { ok: true, records: [] };
-  log("info", "remote_select_start", { table: SUPABASE_TABLE, ownerId: state.currentUser.id });
+  log("info", "remote_select_start", { table: SUPABASE_TABLE, owner: safeUserIdForLog(state.currentUser.id) });
   const { data, error } = await state.db
     .from(SUPABASE_TABLE)
     .select("payload, created_at")
@@ -1435,48 +1646,55 @@ async function loadRecordsFromRemote(options = {}) {
   const rows = (data || []).length;
   log("info", "remote_select_ok", { rows });
   if (!quiet) setSyncStatus("تم تحميل البيانات من Supabase.", true);
-  const records = normalizeRecordsStep2(
-    normalizeRecordsStep1((data || []).map((row) => row.payload).filter(Boolean))
-  );
+  const rawPayloads = (data || []).map((row) => coerceSalePayload(row.payload)).filter(Boolean);
+  const records = normalizeRecordsStep2(normalizeRecordsStep1(rawPayloads));
   return { ok: true, records };
 }
 
 async function upsertRecordRemote(record) {
   if (!state.db || !state.currentUser) return false;
-  log("info", "remote_upsert_one_start", { recordId: record?.recordId, ownerId: state.currentUser.id });
+  log("info", "remote_upsert_one_start", { recordId: safeRecordIdForLog(record?.recordId), owner: safeUserIdForLog(state.currentUser.id) });
   const { error } = await state.db
     .from(SUPABASE_TABLE)
     .upsert({ record_id: record.recordId, owner_id: state.currentUser.id, payload: record }, { onConflict: "record_id" });
   if (error) {
-    log("error", "remote_upsert_one_error", { message: error.message, status: error.status, code: error.code, recordId: record?.recordId });
+    log("error", "remote_upsert_one_error", {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+      recordId: safeRecordIdForLog(record?.recordId)
+    });
     setAuthStatus(`فشل حفظ سجل في Supabase: ${error.message}`, false);
     setSyncStatus(`فشل الحفظ: ${error.message}`, false);
     return false;
   }
-  log("info", "remote_upsert_one_ok", { recordId: record?.recordId });
+  log("info", "remote_upsert_one_ok", { recordId: safeRecordIdForLog(record?.recordId) });
   setSyncStatus("تم حفظ السجل على Supabase.", true);
   return true;
 }
 
-async function upsertManyRemote(list) {
+async function upsertManyRemote(list, options = {}) {
+  const { suppressStatus = false } = options;
   if (!state.db || !state.currentUser || list.length === 0) return true;
-  log("info", "remote_upsert_many_start", { count: list.length, ownerId: state.currentUser.id });
+  log("info", "remote_upsert_many_start", { count: list.length, owner: safeUserIdForLog(state.currentUser.id) });
   const rows = list.map((record) => ({ record_id: record.recordId, owner_id: state.currentUser.id, payload: record }));
   const { error } = await state.db.from(SUPABASE_TABLE).upsert(rows, { onConflict: "record_id" });
   if (error) {
     log("error", "remote_upsert_many_error", { message: error.message, status: error.status, code: error.code, count: list.length });
-    setAuthStatus(`فشل مزامنة البيانات مع Supabase: ${error.message}`, false);
-    setSyncStatus(`فشل المزامنة: ${error.message}`, false);
+    if (!suppressStatus) {
+      setAuthStatus(`فشل مزامنة البيانات مع Supabase: ${error.message}`, false);
+      setSyncStatus(`فشل المزامنة: ${error.message}`, false);
+    }
     return false;
   }
   log("info", "remote_upsert_many_ok", { count: list.length });
-  setSyncStatus("تمت مزامنة البيانات المحلية مع Supabase.", true);
+  if (!suppressStatus) setSyncStatus("تمت مزامنة البيانات المحلية مع Supabase.", true);
   return true;
 }
 
 async function deleteAllRemote() {
   if (!state.db || !state.currentUser) return false;
-  log("warn", "remote_delete_all_start", { ownerId: state.currentUser.id });
+  log("warn", "remote_delete_all_start", { owner: safeUserIdForLog(state.currentUser.id) });
   const { error } = await state.db.from(SUPABASE_TABLE).delete().eq("owner_id", state.currentUser.id);
   if (error) {
     log("error", "remote_delete_all_error", { message: error.message, status: error.status, code: error.code });
@@ -1484,24 +1702,24 @@ async function deleteAllRemote() {
     setSyncStatus(`فشل الحذف: ${error.message}`, false);
     return false;
   }
-  log("warn", "remote_delete_all_ok", { ownerId: state.currentUser.id });
+  log("warn", "remote_delete_all_ok", { owner: safeUserIdForLog(state.currentUser.id) });
   setSyncStatus("تم حذف بياناتك من Supabase.", true);
   return true;
 }
 
 async function deleteRecordRemote(recordId) {
   if (!state.db || !state.currentUser || !recordId) return true;
-  log("info", "remote_delete_one_start", { recordId, ownerId: state.currentUser.id });
+  log("info", "remote_delete_one_start", { recordId: safeRecordIdForLog(recordId), owner: safeUserIdForLog(state.currentUser.id) });
   const { error } = await state.db
     .from(SUPABASE_TABLE)
     .delete()
     .eq("record_id", recordId)
     .eq("owner_id", state.currentUser.id);
   if (error) {
-    log("error", "remote_delete_one_error", { message: error.message, recordId });
+    log("error", "remote_delete_one_error", { message: error.message, recordId: safeRecordIdForLog(recordId) });
     return false;
   }
-  log("info", "remote_delete_one_ok", { recordId });
+  log("info", "remote_delete_one_ok", { recordId: safeRecordIdForLog(recordId) });
   return true;
 }
 
@@ -1683,6 +1901,10 @@ function dailyKvMoney(label, formatted) {
 
 function render() {
   log("info", "render_start", { records: state.records.length, loggedIn: !!state.currentUser });
+  if (!dom.rowsContainer) {
+    log("warn", "render_skipped_missing_rows_container", {});
+    return;
+  }
   dom.rowsContainer.innerHTML = "";
   let totalSales = 0;
   let totalProfit = 0;
@@ -1857,9 +2079,13 @@ function renderFinanceHub() {
 }
 
 function renderIdeasPreview() {
-  const capital = Number(dom.ideaFields.capital.value) || 0;
-  const price = Number(dom.ideaFields.price.value) || 0;
-  const qty = Number(dom.ideaFields.qty.value) || 0;
+  const capEl = dom.ideaFields.capital;
+  const priceEl = dom.ideaFields.price;
+  const qtyEl = dom.ideaFields.qty;
+  if (!capEl || !priceEl || !qtyEl || !dom.ideaTotals.expectedSalesEl || !dom.ideaTotals.expectedProfitEl) return;
+  const capital = Number(capEl.value) || 0;
+  const price = Number(priceEl.value) || 0;
+  const qty = Number(qtyEl.value) || 0;
   const expectedSales = price * qty;
   const expectedProfit = expectedSales - capital;
   const marginPct = expectedSales > 0 ? Math.round((expectedProfit / expectedSales) * 100) : 0;
@@ -2016,7 +2242,14 @@ function addDeletionLog(message) {
 }
 
 function renderInsights() {
-  if (!dom.insights.donutEl || !dom.insights.lineEl || !dom.insights.bestIdeasListEl) return;
+  if (
+    !dom.insights.donutEl ||
+    !dom.insights.donutHintEl ||
+    !dom.insights.lineEl ||
+    !dom.insights.lineHintEl ||
+    !dom.insights.bestIdeasListEl
+  )
+    return;
 
   // 1) Donut: paid / unpaid / reinvest distribution from actual records.
   const totalSales = state.records.reduce((acc, r) => acc + (Number(r.totalSale) || 0), 0);
@@ -2259,11 +2492,13 @@ function bindAuthEvents() {
 // App init and event wiring
 // =========================
 function init() {
-  log("info", "init_start", {
-    projectId: SUPABASE_PROJECT_ID,
-    url: SUPABASE_URL,
-    table: SUPABASE_TABLE
-  });
+  if (__dailySalesInitOnce) {
+    log("warn", "init_ignored_already_ran", {});
+    return;
+  }
+  __dailySalesInitOnce = true;
+
+  log("info", "init_start", { projectId: SUPABASE_PROJECT_ID, table: SUPABASE_TABLE });
   const hasDb = ensureSupabaseClient();
   if (hasDb) {
     log("info", "supabase_client_created", { projectId: SUPABASE_PROJECT_ID });
@@ -2272,13 +2507,15 @@ function init() {
     log("warn", "supabase_client_not_created", { cfgError: cfgError || null, hasCreateClient: !!globalThis.supabase?.createClient });
   }
 
-  // Bind auth actions early so login/signup buttons always work.
-  bindAuthEvents();
   bindSalesFlushOnPageHide();
   if (state.db) {
     state.db.auth.onAuthStateChange(async (event, session) => {
-      log("info", "auth_state_change", { event, hasSession: !!session, userId: session?.user?.id || null });
-      authTrace("auth_state_change", { event, hasSession: !!session, userId: session?.user?.id || null });
+      log("info", "auth_state_change", { event, hasSession: !!session, user: safeUserIdForLog(session?.user?.id) });
+      authTrace("auth_state_change", {
+        event,
+        hasSession: !!session,
+        user: safeUserIdForLog(session?.user?.id)
+      });
 
       // INITIAL_SESSION may be null momentarily in some environments; avoid overriding UI state.
       if (event === "INITIAL_SESSION") return;
@@ -2306,7 +2543,7 @@ function init() {
   }
 
   dom.debtRepaidDate?.addEventListener("change", () => {
-    log("info", "debt_repaid_date_change", { value: dom.debtRepaidDate?.value ?? "" });
+    log("info", "debt_repaid_date_change", {});
     syncDebtRepaidUi();
   });
   syncDebtRepaidUi();
@@ -2397,7 +2634,7 @@ function init() {
     closeSidebarDrawerIfMobile();
   });
 
-  dom.fields.unpaidAmount.addEventListener("input", () => {
+  dom.fields.unpaidAmount?.addEventListener("input", () => {
     const str = dom.fields.unpaidAmount.value.trim();
     if (str === "") return;
     const v = Number(str);
@@ -2408,7 +2645,7 @@ function init() {
     }
   });
 
-  dom.rowsContainer.addEventListener("click", async (event) => {
+  dom.rowsContainer?.addEventListener("click", async (event) => {
     const clickRoot = event.target instanceof Element ? event.target : event.target?.parentElement;
     const editBtn = clickRoot?.closest("[data-sale-edit]");
     if (editBtn && state.currentUser) {
@@ -2456,7 +2693,7 @@ function init() {
         }
         setSyncStatus("تم حذف العملية من السجل والسحابة.", true);
       } else setSyncStatus("تم حذف العملية من السجل المحلي.", true);
-      log("info", "sale_deleted", { recordId: id });
+      log("info", "sale_deleted", { recordId: safeRecordIdForLog(id) });
       addDeletionLog(`حذف عملية بيع (${removed.product || id})`);
       return;
     }
@@ -2467,7 +2704,7 @@ function init() {
     const rec = state.records.find((r) => recordCanonicalId(r) === paidId);
     if (!rec || rec.debtCleared || remainingUnpaid(rec) <= 0) return;
     if (!confirm("تأكيد أن الزبون سدّى كامل الآجل المسجّل لهذا السطر؟")) return;
-    log("info", "debt_mark_paid", { recordId: rec.recordId });
+    log("info", "debt_mark_paid", { recordId: safeRecordIdForLog(rec.recordId) });
     const owed = clampUnpaid(rec.totalSale, rec.unpaidAmount ?? rec.unpaid ?? 0);
     const prevSnap = Number(rec.originalDebtAtSale);
     rec.originalDebtAtSale = clampUnpaid(rec.totalSale, Math.max(owed, Number.isFinite(prevSnap) ? prevSnap : 0));
@@ -2484,7 +2721,7 @@ function init() {
     syncDebtRepaidUi();
   });
 
-  dom.form.addEventListener("submit", async (event) => {
+  dom.form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const repaid = String(dom.debtRepaidDate?.value || "").trim();
     const unpaidStr = dom.fields.unpaidAmount.value.trim();
@@ -2513,14 +2750,7 @@ function init() {
     if (Number.isNaN(base.cost) || base.cost < 0) return alert("أدخل قيمة صحيحة في رأس المال.");
     if (base.unpaidAmount > base.totalSale) return alert("مبلغ «غير المدفوع» لا يمكن أن يتجاوز إجمالي البيع.");
 
-    log("info", "sale_submit", {
-      date: base.date,
-      product: base.product,
-      totalSale: base.totalSale,
-      unpaidAmount: base.unpaidAmount,
-      cost: base.cost,
-      debtRepaidDate: repaid || null
-    });
+    log("info", "sale_submit", { editing: !!state.editingSaleRecordId });
     try {
       const editingId = state.editingSaleRecordId;
       const newRecord = computeRecord(base, editingId);
@@ -2560,7 +2790,7 @@ function init() {
   });
 
   for (const field of [dom.ideaFields.capital, dom.ideaFields.price, dom.ideaFields.qty]) {
-    field.addEventListener("input", renderIdeasPreview);
+    field?.addEventListener("input", renderIdeasPreview);
   }
   dom.ideaTypeProduct?.addEventListener("change", syncIdeaTypeUi);
   dom.ideaTypeService?.addEventListener("change", syncIdeaTypeUi);
