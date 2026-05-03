@@ -348,6 +348,15 @@
 
     .form-stack .panel-card.hidden-section { display: none; }
 
+    /* صفحة «تعديل» من السجل: تمرير أكثر تحت العناوين/القوائم الثابتة */
+    #salesSectionCard {
+      scroll-margin-top: max(96px, env(safe-area-inset-top, 0px));
+    }
+
+    #product {
+      scroll-margin-top: max(88px, env(safe-area-inset-top, 0px));
+    }
+
     .sync-status {
       font-size: 13px;
       color: var(--text-muted);
@@ -643,6 +652,37 @@
     .hub-card-sales { border-color: rgba(37, 99, 235, 0.45); box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12); }
     .hub-card-expense { border-color: rgba(52, 211, 153, 0.42); box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.1); }
     .hub-card-wasiyyat { border-color: rgba(251, 191, 36, 0.45); box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.1); }
+    .hub-card-personal {
+      grid-column: 1 / -1;
+      border-color: rgba(167, 139, 250, 0.5);
+      box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.12);
+    }
+    .finance-hub-personal-fields {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-end;
+      margin-top: 4px;
+    }
+    .finance-hub-personal-fields label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 700;
+      min-width: 160px;
+      flex: 1 1 180px;
+    }
+    .finance-hub-personal-fields input[type="number"] {
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--stroke);
+      background: rgba(0, 0, 0, 0.35);
+      color: var(--text);
+      font-size: 14px;
+    }
+    .finance-hub-remaining--warn { color: #fb7185 !important; }
     .finance-hub-card-title {
       margin: 0;
       font-size: 13px;
@@ -1582,8 +1622,10 @@
                 <h3 id="debtBlockTitle" class="form-section-title">آجل وحالة الدين — مقترنَان بالإجمالي</h3>
                 <p class="form-section-lead" style="margin-bottom: 6px">الحقلان يفسّران معًا الوضع أمام الزبون، مع قسم «إجمالي البيع» الذي سبق هذا الصندوق.</p>
                 <p class="debt-unified-intro" id="debtBlockIntro">
-                  المعادلة المشتركة: من <strong>إجمالي البيع</strong> تعرف كم <strong>دُفع فورًا</strong> وكم <strong>بقي آمِلًا (آجل)</strong>. إذا وُجد
-                  <strong>تاريخ إسداد الدين</strong> يعتبر التحصيل كاملًا والآجل صفر؛ وإن تُرك التاريخ فارغًا يعتمد على خانة الآجل أدناه.
+                  من <strong>إجمالي البيع</strong> تفرِّق بين ما <strong>استلمته فورًا</strong> وما <strong>بقي على الزبون دينًا (آجل)</strong>.
+                  الحقل الآتي بعنوان <strong>تحصيل الباقي</strong> يعني متى سدَّد الزبون ذلك المتبقي لك؛ ليس وقتًا شخصيًا آخر خارج الزبائن.
+                  إذا <strong>سدَّد الزبون كامل المتبقي</strong> وفيه يوم تقيّله، ضع ذلك التاريخ ⇒ يعتبر الآجل منتهيًا.
+                  ما دام لم يكمِل الزبون، أبقِ التاريخ فارغًا واعتمد خانة الآجل في الخطوة ١.
                 </p>
 
                 <div class="debt-unified-steps">
@@ -1603,7 +1645,7 @@
                           aria-describedby="debtBlockIntro debtPaidInline"
                         />
                         <div id="debtPaidInline" class="hint">
-                          الدفع الفوري = إجمالي البيع − هذا المبلغ؛ يعمل مع حقول هذا القسم ولا يقطع علاقته بتاريخ الإسداد في الخطوة التالية.
+                          الدفع الفوري (= ما استلمته مباشرة) = إجمالي البيع − هذا الآجل؛ هذا الصف يربط بـ «تاريخ تحصيل الباقي من الزبون» في الخطوة التالية (يوم قبض المتبقي) وليس بمعنى آخر.
                         </div>
                       </div>
                     </div>
@@ -1611,9 +1653,9 @@
                   <div class="debt-step">
                     <span class="debt-step-marker" aria-hidden="true">٢</span>
                     <div class="debt-step-body">
-                      <span class="debt-step-caption" id="stepDebtCaption">٢ — تم إسداد كل الباقي؟</span>
+                      <span class="debt-step-caption" id="stepDebtCaption">٢ — هل أنهى الزبون دفع المتبقي لك؟</span>
                       <div class="one-field">
-                        <label for="debtRepaidDate">تاريخ إسداد الدين</label>
+                        <label for="debtRepaidDate">تاريخ تحصيل الباقي من الزبون</label>
                         <input
                           id="debtRepaidDate"
                           type="date"
@@ -1621,7 +1663,8 @@
                           aria-describedby="debtBlockIntro debtHintUnified"
                         />
                         <div id="debtHintUnified" class="hint">
-                          تحصيل <strong>كامل</strong>: اختر تاريخًا ⇒ يعتبر الآجل 0 وتُعطَّل خانة الآجل وقتها. <strong>ما زال الآجل قائمًا</strong>: أبقِ التاريخ فارغًا واكتفِ بقيمة الآجل في الخطوة الأولى؛ إذا أدخلت آجلًا أكبر من 0 يُفرّغ هذا التاريخ تلقائيًا.
+                          <strong>الزبون سدَّد كل الباقي</strong>: دوِّن <strong>يوم التحصيل</strong> (يوم قبض المتبقي) ⇒ الآجل يصبح صفر وتُعطَّل خانة الآجل أعلاه.
+                          <strong>ما زال جزء الآجل قائمًا</strong>: أبقِ هذا التاريخ فارغًا وسجّل المتبقي في الخطوة ١؛ زيادة الآجل فوق الصفر تمسح هذا التاريخ تلقائيًا لتفادي التناقض.
                         </div>
                       </div>
                     </div>
@@ -1797,9 +1840,26 @@
           <section class="finance-hub" aria-labelledby="financeHubTitle">
             <h3 class="finance-hub-heading" id="financeHubTitle">حساب موحّد: المبيعات والمصروفات والوصيات</h3>
             <p class="finance-hub-lead">
-              الأرقام أدناه تربط <strong>المبيعات اليومية</strong> (سجل كل عملية)، و<strong>خانة المصروفات</strong>، و<strong>خانة الوصيات</strong> قبل تفاصيل البطاقات التالية في نفس الملخص.
+              تربط <strong>المبيعات اليومية</strong> و<strong>المصروفات</strong> و<strong>الوصيات</strong>.
+              <strong>المال الخاص</strong> رصيد تضعه بنفسك (ما هو متاح لك خارج/إلى جانب سجل الفواتير)؛ كل ما في «خانة المصروفات» يُطرح منه تلقائيًا لتظهر <strong>الجيب بعد المصاريف</strong>.
             </p>
             <div class="finance-hub-grid">
+              <article class="finance-hub-card hub-card-personal">
+                <h4 class="finance-hub-card-title">المال الخاص</h4>
+                <p class="finance-hub-sub" style="margin: 0">
+                  ضع الرصيد الحالي المتاح؛ إجمالي المصروفات المسجّلة يُنقَص منه في السطر أسفله (لا يغيّر سجل الأرباح في المبيعات).
+                </p>
+                <div class="finance-hub-personal-fields">
+                  <label for="hubPersonalWalletInput">
+                    رصيد المال الخاص (د)
+                    <input id="hubPersonalWalletInput" type="number" min="0" step="0.01" placeholder="0" autocomplete="transaction-amount" inputmode="decimal" />
+                  </label>
+                  <button type="button" id="hubPersonalWalletSaveBtn" class="btn-ghost-light btn-small">تحديث الرصيد</button>
+                </div>
+                <p class="finance-hub-metrics" style="margin-top: 6px">
+                  المتبقي بعد المصروفات: <strong id="hubPersonalRemaining">0 د</strong>
+                </p>
+              </article>
               <article class="finance-hub-card hub-card-sales">
                 <h4 class="finance-hub-card-title">المبيعات اليومية</h4>
                 <p class="finance-hub-metrics"><span id="hubSalesOps">0</span> عملية — إجمالي المبيعات <strong id="hubSalesTotalRef">0 د</strong></p>
@@ -1825,7 +1885,6 @@
                 </div>
               </article>
             </div>
-            <p class="finance-hub-fusion hint" id="hubFusionLine"></p>
           </section>
           <div class="summary-strip">
             <div class="sum-card c1"><span>إجمالي المبيعات</span><b id="totalSales">0.00 د</b></div>
@@ -2004,6 +2063,6 @@
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260503r"></script>
+  <script defer src="./app.js?v=20260503t"></script>
 </body>
 </html>

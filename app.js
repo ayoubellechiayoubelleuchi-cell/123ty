@@ -8,6 +8,7 @@ const IDEAS_STORAGE_KEY = "project-ideas-v1";
 const EXPENSES_STORAGE_KEY = "project-expenses-v1";
 const INVESTORS_STORAGE_KEY = "investors-ideas-v1";
 const WASIYYAT_STORAGE_KEY = "wasiyyat-log-v1";
+const PERSONAL_WALLET_STORAGE_KEY = "personal-wallet-v1";
 const DELETION_LOG_KEY = "deletion-log-v1";
 const SUPABASE_PROJECT_ID = "navqvljmipzheqjmlzgt";
 const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
@@ -241,6 +242,8 @@ const state = {
   investors: [],
   wasiyyat: [],
   expenses: [],
+  /** رصيد «المال الخاص» بعد حفظه؛ يُعرض المتبقي = هذا الرصيد − مجموع المصروفات */
+  personalWallet: 0,
   deletionLog: [],
   /** عند التعديل: معرّف السجل المفتوح في النموذج */
   editingSaleRecordId: null,
@@ -645,6 +648,7 @@ function applySignedOutState(message = "تم تسجيل الخروج.") {
   state.investors = [];
   state.wasiyyat = [];
   state.expenses = [];
+  state.personalWallet = 0;
   state.deletionLog = [];
   state.editingSaleRecordId = null;
   clearSaleEditMode();
@@ -698,6 +702,7 @@ async function activateAppSerialized(user, statusSuffix = "") {
     const local = localLoad.list;
     state.ideas = loadIdeas();
     state.expenses = loadExpenses();
+    state.personalWallet = loadPersonalWallet();
     state.investors = loadInvestors();
     state.wasiyyat = loadWasiyyat();
     state.deletionLog = loadDeletionLog();
@@ -864,6 +869,10 @@ function userExpensesStorageKey() {
   return state.currentUser ? `${EXPENSES_STORAGE_KEY}:${state.currentUser.id}` : EXPENSES_STORAGE_KEY;
 }
 
+function userPersonalWalletKey() {
+  return state.currentUser ? `${PERSONAL_WALLET_STORAGE_KEY}:${state.currentUser.id}` : PERSONAL_WALLET_STORAGE_KEY;
+}
+
 function userInvestorsStorageKey() {
   return state.currentUser ? `${INVESTORS_STORAGE_KEY}:${state.currentUser.id}` : INVESTORS_STORAGE_KEY;
 }
@@ -884,6 +893,10 @@ function backupExpensesStorageKey() {
   return `${EXPENSES_STORAGE_KEY}:backup`;
 }
 
+function backupPersonalWalletStorageKey() {
+  return `${PERSONAL_WALLET_STORAGE_KEY}:backup`;
+}
+
 function backupInvestorsStorageKey() {
   return `${INVESTORS_STORAGE_KEY}:backup`;
 }
@@ -902,6 +915,10 @@ function emergencyIdeasKey() {
 
 function emergencyExpensesKey() {
   return `${EXPENSES_STORAGE_KEY}:emergency`;
+}
+
+function emergencyPersonalWalletKey() {
+  return `${PERSONAL_WALLET_STORAGE_KEY}:emergency`;
 }
 
 function emergencyInvestorsKey() {
@@ -1557,6 +1574,32 @@ function saveExpenses(options = {}) {
   log("info", "expenses_local_save", { keyHint: redactStorageKeyForLog(userExpensesStorageKey()), count: state.expenses.length });
 }
 
+function loadPersonalWallet() {
+  try {
+    let raw = localStorage.getItem(userPersonalWalletKey());
+    if (!raw) raw = localStorage.getItem(backupPersonalWalletStorageKey());
+    if (!raw) raw = localStorage.getItem(PERSONAL_WALLET_STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(emergencyPersonalWalletKey());
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw);
+    const n = Number(parsed?.balance ?? parsed);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
+function savePersonalWallet(balance) {
+  if (!state.currentUser) return;
+  const n = Math.max(0, Number(balance) || 0);
+  state.personalWallet = n;
+  const payload = JSON.stringify({ balance: n });
+  localStorage.setItem(userPersonalWalletKey(), payload);
+  localStorage.setItem(emergencyPersonalWalletKey(), payload);
+  localStorage.setItem(backupPersonalWalletStorageKey(), payload);
+}
+
 function loadInvestors() {
   try {
     let raw = localStorage.getItem(userInvestorsStorageKey());
@@ -1818,23 +1861,44 @@ function applyRecordToSaleForm(rec) {
   syncDebtRepaidUi();
 }
 
-/** بعد «تمرير» لمربع البيع: يظهر النموذج ويُركَّز على ما كُتِب لتقليل خطأ الزبائن */
-function scrollAndFocusSaleFormForEdit(rec) {
-  const anchor = dom.salesSectionCard || dom.form;
-  if (anchor) scrollToPanel(anchor);
+/** بعد التعديل: يُحمَل قسم البيع ثم التمرير لحقل اسم المنتج مع التركيز لسهولة التصحيح */
+function scrollAndFocusSaleFormForEdit() {
+  const card = dom.salesSectionCard;
+  const productEl = dom.fields.product;
+
+  const bringFormIntoView = () => {
+    try {
+      if (card) scrollToPanel(card);
+    } catch (_) {}
+    try {
+      productEl?.scrollIntoView?.({ behavior: "smooth", block: "center", inline: "nearest" });
+    } catch (_) {
+      try {
+        productEl?.scrollIntoView?.(true);
+      } catch (_) {}
+    }
+  };
+
+  const focusProduct = () => {
+    try {
+      if (!productEl || typeof productEl.focus !== "function") return;
+      productEl.focus({ preventScroll: true });
+      if (typeof productEl.select === "function") productEl.select();
+      else if (productEl.value != null && "setSelectionRange" in productEl) {
+        const n = String(productEl.value).length;
+        productEl.setSelectionRange(n, n);
+      }
+    } catch (_) {}
+  };
+
+  bringFormIntoView();
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      try {
-        const desc = dom.fields.description;
-        const prod = dom.fields.product;
-        const descLen = String(rec?.description || "").trim().length;
-        /** أولًا وصف البيع إن له نص؛ وإلا اسم المنتج */
-        let el =
-          descLen >= 4 && desc ? desc : prod && String(rec?.product || "").trim().length > 0 ? prod : prod || desc || dom.fields.date;
-        if (!el || typeof el.focus !== "function") return;
-        el.focus({ preventScroll: true });
-        if (el === prod && typeof el.select === "function") el.select();
-      } catch (_) {}
+      bringFormIntoView();
+      window.setTimeout(() => {
+        bringFormIntoView();
+        focusProduct();
+      }, 280);
     });
   });
 }
@@ -2040,11 +2104,8 @@ function renderMonthlyProfitSummary() {
     .join("");
 }
 
-/** يحدّث بطاقات «المبيعات اليومية + المصروفات + الوصيات» في ملخص المشروع */
+/** يحدّث بطاقات «المبيعات اليومية + المصروفات + الوصيات + المال الخاص» في ملخص المشروع */
 function renderFinanceHub() {
-  const fusionEl = document.getElementById("hubFusionLine");
-  if (!fusionEl) return;
-
   const salesOps = state.records.length;
   const totalSalesAmt = state.records.reduce((acc, r) => acc + (Number(r.totalSale) || 0), 0);
   const totalNet = state.records.reduce((acc, r) => acc + (Number(r.netProfit) || 0), 0);
@@ -2055,6 +2116,9 @@ function renderFinanceHub() {
   const wyCnt = state.wasiyyat.length;
   const wyCap = state.wasiyyat.reduce((acc, w) => acc + (Number(w.capital) || 0), 0);
   const wyPrice = state.wasiyyat.reduce((acc, w) => acc + (Number(w.productPrice) || 0), 0);
+
+  const wallet = Number(state.personalWallet) || 0;
+  const walletAfterExpenses = wallet - expSum;
 
   const setTxt = (id, text) => {
     const node = document.getElementById(id);
@@ -2072,10 +2136,15 @@ function renderFinanceHub() {
   setTxt("hubWasiyyatCapital", currency(wyCap));
   setTxt("hubWasiyyatPrice", currency(wyPrice));
 
-  const afterExp = totalNet - expSum;
-  fusionEl.textContent = `ربط الموازنة: صافي الربح من سجل المبيعات ${currency(totalNet)} ناقص إجمالي المصروفات ${currency(expSum)} = ${currency(
-    afterExp
-  )}. — الوصيات: ${wyCnt} صفًا؛ رأس مال مربوط ${currency(wyCap)}؛ ثمن متوقع للبيع ${currency(wyPrice)}.`;
+  const inp = document.getElementById("hubPersonalWalletInput");
+  if (inp && document.activeElement !== inp) {
+    inp.value = wallet > 0 ? String(wallet) : "";
+  }
+  const remEl = document.getElementById("hubPersonalRemaining");
+  if (remEl) {
+    remEl.textContent = currency(walletAfterExpenses);
+    remEl.classList.toggle("finance-hub-remaining--warn", walletAfterExpenses < 0);
+  }
 }
 
 function renderIdeasPreview() {
@@ -2176,6 +2245,7 @@ function renderExpenses() {
     dom.expenseCards.appendChild(article);
   }
   dom.expensesEmptyState.style.display = state.expenses.length === 0 ? "block" : "none";
+  renderFinanceHub();
 }
 
 function renderWasiyyat() {
@@ -2663,7 +2733,7 @@ function init() {
       if (cancelBtn) cancelBtn.classList.remove("hidden");
       setMainView("sales");
       closeSidebarDrawerIfMobile();
-      scrollAndFocusSaleFormForEdit(rec);
+      scrollAndFocusSaleFormForEdit();
       return;
     }
 
@@ -2730,7 +2800,8 @@ function init() {
     if (!repaid && Number.isNaN(unpaidRaw)) {
       return alert("أدخل رقما صحيحا في خانة «مبيعات غير مدفوعة»، أو اتركها فارغة (صفر).");
     }
-    if (repaid && unpaidRaw > 0) return alert("أزل تاريخ إسداد الدين أو احذف مبلغ الآجل — لا يجمع بينهما.");
+    if (repaid && unpaidRaw > 0)
+      return alert("أزل تاريخ تحصيل الباقي من الزبون أو أفرغ مبلغ الآجل — لا يجمع بينهما.");
 
     const base = {
       date: dom.fields.date.value,
@@ -2849,6 +2920,26 @@ function init() {
     saveWasiyyat();
     renderWasiyyat();
     setSyncStatus("تم حذف سجل الوصية.", true);
+  });
+
+  function commitPersonalWalletFromHub() {
+    if (!state.currentUser) return alert("سجّل الدخول أولًا.");
+    const inp = document.getElementById("hubPersonalWalletInput");
+    if (!inp) return;
+    const raw = inp.value.trim();
+    const n = raw === "" ? 0 : Number(raw.replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) return alert("أدخل مبلغًا صحيحًا (صفر أو أكثر).");
+    savePersonalWallet(n);
+    renderFinanceHub();
+    setSyncStatus("تم حفظ المال الخاص.", true);
+  }
+
+  document.getElementById("hubPersonalWalletSaveBtn")?.addEventListener("click", commitPersonalWalletFromHub);
+  document.getElementById("hubPersonalWalletInput")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitPersonalWalletFromHub();
+    }
   });
 
   dom.standaloneExpenseForm?.addEventListener("submit", (event) => {
