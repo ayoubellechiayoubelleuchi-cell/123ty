@@ -3169,10 +3169,14 @@ async function init() {
 
   function syncDebtRepaidUi() {
     const hasDate = !!String(dom.debtRepaidDate?.value || "").trim();
-    if (hasDate) {
+    const editingSale = !!state.editingSaleRecordId;
+    /** إضافة جديدة: تاريخ التحصيل يفرّغ الآجل ويُعطّله لتفادي التناقض. تعديل سجل: نفس الحقول تبقى قابلة للتحرير والتحقق عند الحفظ. */
+    if (hasDate && !editingSale) {
       dom.fields.unpaidAmount.value = "";
       dom.fields.unpaidAmount.disabled = true;
-    } else dom.fields.unpaidAmount.disabled = false;
+    } else {
+      dom.fields.unpaidAmount.disabled = false;
+    }
   }
 
   dom.debtRepaidDate?.addEventListener("change", () => {
