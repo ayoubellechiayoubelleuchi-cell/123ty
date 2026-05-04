@@ -349,7 +349,13 @@ function ensureSupabaseClient() {
     log("warn", "supabase_client_unavailable", { cfgError: cfgError || null, hasCreateClient: !!globalThis.supabase?.createClient });
     return false;
   }
-  state.db = globalThis.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  state.db = globalThis.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
   authTrace("ensure_client:ok", { projectId: SUPABASE_PROJECT_ID });
   return true;
 }
@@ -2717,11 +2723,6 @@ async function refreshSessionStateImpl() {
   let { data, error } = await state.db.auth.getSession();
   if (error) {
     authTrace("refresh_session:get_session_error", { message: error.message, status: error.status || null, code: error.code || null });
-    /** أثناء «دخول» قد تحدث لحظة بلا قراءة جلسة — لا نظهر شاشة خروج/تصفير */
-    if (state.authBusy) {
-      authTrace("refresh_session:get_session_error_skip_auth_busy", {});
-      return;
-    }
     if (await tryActivateFromStoredJwtUserStub("getSession_error")) return;
     if (await tryActivateFromLastKnownLocalUser("getSession_error")) return;
     if (await trySalvageGuestOrOfflineDatastore("getSession_error")) return;
@@ -2766,18 +2767,17 @@ async function refreshSessionStateImpl() {
 
   state.currentUser = data?.session?.user ?? null;
   if (!state.currentUser) {
-    const probeAuth = await state.db.auth.getUser();
-    if (!probeAuth.error && probeAuth.data?.user) {
-      state.currentUser = probeAuth.data.user;
-      authTrace("refresh_session:resolved_via_get_user", { userId: probeAuth.data.user.id || null });
+    try {
+      const probeAuth = await state.db.auth.getUser();
+      if (!probeAuth.error && probeAuth.data?.user) {
+        state.currentUser = probeAuth.data.user;
+        authTrace("refresh_session:resolved_via_get_user", { userId: probeAuth.data.user.id || null });
+      }
+    } catch (probeErr) {
+      authTrace("refresh_session:get_user_fallback_exception", { message: probeErr?.message || "unknown" });
     }
   }
   if (!state.currentUser) {
-    /** لا نقرِّر أن المستخدم خارج الحساب أثناء إتمام المصادقة (سباق بعد SIGNED_IN) */
-    if (state.authBusy) {
-      authTrace("refresh_session:no_user_skip_while_auth_busy", {});
-      return;
-    }
     if (await tryActivateFromStoredJwtUserStub("no_supabase_session_after_retries")) return;
     if (await tryActivateFromLastKnownLocalUser("no_supabase_session_after_retries")) return;
     if (await trySalvageGuestOrOfflineDatastore("no_supabase_session_after_retries")) return;
@@ -2841,10 +2841,11 @@ async function handleLogin() {
       setAuthStatus(formatAuthError(error, "تسجيل الدخول"), false);
       return;
     }
-    if (!data?.user) return setAuthStatus("تمت المحاولة لكن لم تصل بيانات مستخدم. حاول مرة أخرى.", false);
-    authTrace("login:success", { userId: data.user.id || null });
+    const signedInUser = data?.session?.user ?? data?.user ?? null;
+    if (!signedInUser) return setAuthStatus("تمت المحاولة لكن لم تصل بيانات مستخدم. حاول مرة أخرى.", false);
+    authTrace("login:success", { userId: signedInUser.id || null });
     setAuthStatus("تم قبول حسابك — جاري تحميل بيانات الجهاز والسّحابة…", true);
-    await activateAppForUser(data.user, "", { deferCloudUpsertToBackground: true });
+    await activateAppForUser(signedInUser, "", { deferCloudUpsertToBackground: true });
   });
 }
 
@@ -2964,10 +2965,12 @@ async function init() {
        */
       if (event === "INITIAL_SESSION") return;
 
-      if (event === "SIGNED_IN" && session?.user) {
-        await refreshSessionState();
-        return;
-      }
+      /**
+       * لا نستدعي refreshSessionState() عند SIGNED_IN من كلمة المرور: يتعارض مع activateAppForUser
+       * داخل handleLogin ويُعيد getSession لحظة بلا جلسة أحيانًا. التحميل الأول: init() + refreshSessionState.
+       * التحديث: TOKEN_REFRESHED والأحداث الأخرى تستدعي refreshSessionState في الأسفل.
+       */
+      if (event === "SIGNED_IN") return;
 
       if (event === "SIGNED_OUT") {
         applySignedOutState("تم تسجيل الخروج.");
