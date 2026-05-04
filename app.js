@@ -107,6 +107,8 @@ const RECOVER_SALES_BTN_BUSY_AR = "جاري الاستعادة…";
 const RECOVER_SALES_MERGE_DEADLINE_MS = 50000;
 /** إن عُلِّقَ التنفيذ المتزامن فلا يصل إلى finally — نُعيد الزر يدويًا */
 const RECOVER_SALES_UI_SAFETY_MS = 56000;
+/** مهلة طلب كلمة المرور مع GoTrue؛ بدونها قد يبقى النص على «جاري التحقق…» */
+const SIGN_IN_WITH_PASSWORD_DEADLINE_MS = 45000;
 
 const dom = {
   form: document.getElementById("saleForm"),
@@ -980,7 +982,7 @@ async function activateAppSerialized(user, statusSuffix = "", activateOptions = 
     state.wasiyyat = loadWasiyyat();
     state.deletionLog = loadDeletionLog();
 
-    const remotePull0 = await loadRecordsFromRemote();
+    const remotePull0 = await loadRecordsFromRemote({ quiet: true });
     let remote = remotePull0.records;
     let remoteOk = remotePull0.ok;
 
@@ -998,7 +1000,7 @@ async function activateAppSerialized(user, statusSuffix = "", activateOptions = 
     if (isSalesClearPending()) {
       if (remoteOk && remote.length > 0 && state.db) {
         await deleteAllRemote();
-        const rp2 = await loadRecordsFromRemote();
+        const rp2 = await loadRecordsFromRemote({ quiet: true });
         remote = rp2.records;
         remoteOk = rp2.ok;
       }
@@ -2717,6 +2719,11 @@ async function refreshSessionStateImpl() {
   let { data, error } = await state.db.auth.getSession();
   if (error) {
     authTrace("refresh_session:get_session_error", { message: error.message, status: error.status || null, code: error.code || null });
+    /** أثناء «دخول» قد تحدث لحظة بلا قراءة جلسة — لا نظهر شاشة خروج/تصفير */
+    if (state.authBusy) {
+      authTrace("refresh_session:get_session_error_skip_auth_busy", {});
+      return;
+    }
     if (await tryActivateFromStoredJwtUserStub("getSession_error")) return;
     if (await tryActivateFromLastKnownLocalUser("getSession_error")) return;
     if (await trySalvageGuestOrOfflineDatastore("getSession_error")) return;
@@ -2761,6 +2768,18 @@ async function refreshSessionStateImpl() {
 
   state.currentUser = data?.session?.user ?? null;
   if (!state.currentUser) {
+    const probeAuth = await state.db.auth.getUser();
+    if (!probeAuth.error && probeAuth.data?.user) {
+      state.currentUser = probeAuth.data.user;
+      authTrace("refresh_session:resolved_via_get_user", { userId: probeAuth.data.user.id || null });
+    }
+  }
+  if (!state.currentUser) {
+    /** لا نقرِّر أن المستخدم خارج الحساب أثناء إتمام المصادقة (سباق بعد SIGNED_IN) */
+    if (state.authBusy) {
+      authTrace("refresh_session:no_user_skip_while_auth_busy", {});
+      return;
+    }
     if (await tryActivateFromStoredJwtUserStub("no_supabase_session_after_retries")) return;
     if (await tryActivateFromLastKnownLocalUser("no_supabase_session_after_retries")) return;
     if (await trySalvageGuestOrOfflineDatastore("no_supabase_session_after_retries")) return;
@@ -2817,7 +2836,20 @@ async function handleLogin() {
   await runAuthAction("login", async () => {
     authTrace("login:start", { emailMasked: safeEmailForLog(email) });
     authTrace("login:request_signInWithPassword", {});
-    const { data, error } = await state.db.auth.signInWithPassword({ email, password });
+    let data = null;
+    let error = null;
+    try {
+      const wrapped = await withTimeoutMs(
+        state.db.auth.signInWithPassword({ email, password }),
+        SIGN_IN_WITH_PASSWORD_DEADLINE_MS,
+        "انتهت مهلة انتظار خادم الدخول. تحقّق من الإنترنت أو VPN ثم حاول من جديد."
+      );
+      data = wrapped?.data ?? null;
+      error = wrapped?.error ?? null;
+    } catch (timeoutErr) {
+      setAuthStatus(timeoutErr?.message || "تعذّر الاتصال بخدمة الدخول.", false);
+      return;
+    }
     if (error) {
       authTrace("login:failed", { message: error.message, status: error.status || null, code: error.code || null });
       if (error.status === 429) return setAuthStatus(formatRateLimitMessage(error), false);
@@ -2840,7 +2872,20 @@ async function handleSignup() {
   await runAuthAction("signup", async () => {
     authTrace("signup:start", { emailMasked: safeEmailForLog(email) });
     authTrace("signup:request_signUp", {});
-    const { data, error } = await signUpWithEmailPassword(email, password);
+    let data = null;
+    let error = null;
+    try {
+      const wrapped = await withTimeoutMs(
+        signUpWithEmailPassword(email, password),
+        SIGN_IN_WITH_PASSWORD_DEADLINE_MS,
+        "انتهت مهلة انتظار الخادم. تحقّق من الإنترنت ثم حاول من جديد."
+      );
+      data = wrapped?.data ?? null;
+      error = wrapped?.error ?? null;
+    } catch (timeoutErr) {
+      setAuthStatus(timeoutErr?.message || "تعذّر الاتصال بخدمة إنشاء الحساب.", false);
+      return;
+    }
     if (error) {
       authTrace("signup:failed", { message: error.message, status: error.status || null, code: error.code || null });
       if (error.status === 429) return setAuthStatus(formatRateLimitMessage(error), false);
