@@ -27,10 +27,13 @@ const SUPABASE_TABLE = "sales_records";
  */
 const LOG_PREFIX = "[daily-sales]";
 const AUTH_MESSAGES = {
-  invalidGmail: "أدخل Gmail صحيح.",
+  invalidGmail: "أدخل Gmail صحيح (مثل name@gmail.com أو name@googlemail.com).",
   shortPassword: "كلمة المرور لازم تكون 6 أحرف على الأقل.",
   wrongPassword: "كلمة المرور خاطئة لهذا الحساب."
 };
+
+/** حسابات المستهلك على Google هي @gmail.com أو @googlemail.com فقط — نفس الصندوق. */
+const GMAIL_DOMAIN_RE = /^[^\s@]+@(gmail|googlemail)\.com$/i;
 
 // =========================
 // Logging helpers
@@ -315,6 +318,7 @@ function validateSupabaseConfig() {
 // UI state helpers
 // =========================
 function setAuthStatus(text, ok = false) {
+  if (!dom.authStatus) return;
   dom.authStatus.textContent = text;
   dom.authStatus.classList.toggle("ok", ok);
   log("info", "auth_status", { ok });
@@ -371,8 +375,7 @@ function getAuthCredentials() {
 function validateAuthInputs() {
   const { email, password } = getAuthCredentials();
   authTrace("validate_auth_inputs", { emailMasked: safeEmailForLog(email), passwordLength: password.length });
-  const emailRegex = /^[^\s@]+@gmail\.com$/i;
-  if (!emailRegex.test(email)) {
+  if (!GMAIL_DOMAIN_RE.test(email)) {
     authTrace("validate_auth_inputs:invalid_email", { emailMasked: safeEmailForLog(email) });
     return { ok: false, message: AUTH_MESSAGES.invalidGmail };
   }
@@ -387,8 +390,7 @@ function validateAuthInputs() {
 function validateEmailOnly() {
   const email = getAuthEmail();
   authTrace("validate_email_only", { emailMasked: safeEmailForLog(email) });
-  const emailRegex = /^[^\s@]+@gmail\.com$/i;
-  if (!emailRegex.test(email)) {
+  if (!GMAIL_DOMAIN_RE.test(email)) {
     authTrace("validate_email_only:invalid_email", { emailMasked: safeEmailForLog(email) });
     return { ok: false, message: AUTH_MESSAGES.invalidGmail };
   }
@@ -400,8 +402,15 @@ function formatAuthError(error, actionLabel) {
   if (!error) return `${actionLabel} فشل لسبب غير معروف.`;
   const details = [error.message].filter(Boolean).join(" | ");
   const msg = String(error.message || "").toLowerCase();
+  const code = String(error.code || "").toLowerCase();
   if (error.status === 429) return `تم تجاوز عدد المحاولات. انتظر قليلًا ثم حاول مجددًا. (${details})`;
-  if (msg.includes("invalid login credentials")) return "بيانات الدخول غير صحيحة.";
+  if (
+    code === "invalid_credentials" ||
+    msg.includes("invalid login credentials") ||
+    msg.includes("invalid_credentials")
+  ) {
+    return "بيانات الدخول غير صحيحة.";
+  }
   if (msg.includes("email not confirmed")) return "الحساب يحتاج تأكيد البريد من إعدادات Supabase.";
   if (error.status === 400) return `${actionLabel} فشل: تحقق من Gmail/كلمة المرور. (${details})`;
   return `${actionLabel} فشل: ${details}`;
@@ -421,7 +430,13 @@ function formatRateLimitMessage(error) {
 
 function isUserAlreadyRegisteredError(error) {
   const msg = String(error?.message || "").toLowerCase();
-  return msg.includes("user already registered");
+  const code = String(error?.code || "").toLowerCase();
+  return (
+    code === "user_already_exists" ||
+    msg.includes("user already registered") ||
+    msg.includes("already been registered") ||
+    msg.includes("already registered")
+  );
 }
 
 async function signUpWithEmailPassword(email, password) {
@@ -2798,9 +2813,9 @@ async function runAuthAction(actionName, action) {
 
 async function handleLogin() {
   if (stopAuthIfLocalFile()) return;
-  setAuthStatus("جاري التحقق من Gmail مع الخادم… (يعتمد على سرعة الشبكة)", false);
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
+  setAuthStatus("جاري التحقق من Gmail مع الخادم… (يعتمد على سرعة الشبكة)", false);
   const { email, password } = getAuthCredentials();
   await runAuthAction("login", async () => {
     authTrace("login:start", { emailMasked: safeEmailForLog(email) });
@@ -2821,9 +2836,9 @@ async function handleLogin() {
 
 async function handleSignup() {
   if (stopAuthIfLocalFile()) return;
-  setAuthStatus("جاري إنشاء الحساب...", false);
   const validation = validateAuthInputs();
   if (!validation.ok) return setAuthStatus(validation.message, false);
+  setAuthStatus("جاري إنشاء الحساب...", false);
   const { email, password } = getAuthCredentials();
   await runAuthAction("signup", async () => {
     authTrace("signup:start", { emailMasked: safeEmailForLog(email) });
@@ -2850,9 +2865,9 @@ async function handleSignup() {
 
 async function handlePasswordReset() {
   if (stopAuthIfLocalFile()) return;
-  setAuthStatus("جاري إرسال رابط استرجاع كلمة المرور...", false);
   const emailValidation = validateEmailOnly();
   if (!emailValidation.ok) return setAuthStatus(emailValidation.message, false);
+  setAuthStatus("جاري إرسال رابط استرجاع كلمة المرور...", false);
   const email = getAuthEmail();
   await runAuthAction("reset", async () => {
     authTrace("reset:start", { emailMasked: safeEmailForLog(email) });
@@ -2877,9 +2892,6 @@ function bindAuthEvents() {
     event.preventDefault();
     authTrace("event:submit_login", {});
     await handleLogin();
-  });
-  dom.loginBtn?.addEventListener("click", () => {
-    if (!state.authBusy) setAuthStatus("جاري بدء المصادقة…", false);
   });
   dom.signupBtn?.addEventListener("click", async () => {
     authTrace("event:click_signup", {});
