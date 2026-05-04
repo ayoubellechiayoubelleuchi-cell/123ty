@@ -23,7 +23,7 @@ const SUPABASE_TABLE = "sales_records";
  * 1) dom + state — عناصر الصفحة والحالة الحية.
  * 2) Auth + activateAppForUser — تسجيل الدخول وجلب/دمج المبيعات مع Supabase.
  * 3) سجلات المبيعات — load/saveRecords، merge، computeRecord، render.
- * 4) الإعدادات — recoverSalesMergeFromDeviceAndCloud (استعادة من الجهاز+السحابة) ومسح السجلات؛ تهيئة المستمعات في init()/bootstrap().
+ * 4) الإعدادات — recoverSalesMergeFromDeviceAndCloud (استعادة من الجهاز+السحابة) وبعد الدخول/التحديث تُكمَل تلقائيًا؛ مسح السجلات؛ تهيئة المستمعات في init()/bootstrap().
  */
 const LOG_PREFIX = "[daily-sales]";
 const AUTH_MESSAGES = {
@@ -1079,6 +1079,20 @@ async function activateAppSerialized(user, statusSuffix = "", activateOptions = 
     renderSalesAppShell();
     authTrace("activate_app:ui_synced", { records: state.records.length });
 
+    /** نفس خطوات زر «استعادة المبيعات» (دمج كل نُسَخ الجهاز + جلب السحابة) تلقائيًا بعد كل تفعيل — دون تأكيد ورفعًا لاحقًا من المسار أدناه */
+    if (!isSalesClearPending() && state.currentUser) {
+      try {
+        await withTimeoutMs(
+          recoverSalesMergeBody({ automatic: true, skipCloudPush: true }),
+          RECOVER_SALES_MERGE_DEADLINE_MS,
+          "انتهت مهلة الاستعادة التلقائية — يمكنك المتابعة، أو إعادة المحاولة يدويًا من الإعدادات."
+        );
+      } catch (err) {
+        authTrace("activate_app:auto_recover_deadline_or_error", { message: err?.message || "unknown" });
+        log("warn", "auto_recover_after_activate_failed", String(err?.message || err));
+      }
+    }
+
     /** من الدخول: نفعِّل الواجهة قبل انتهاء رفع كل الصفوف. من التحديث/التهيئة: ننتظر الدفعات حتى تناسق أسرع مع السّحابة */
     if (deferCloudUpsert) void activateCloudUploadAfterLoginOpen();
     else if (state.db && !isSalesClearPending() && state.records.length > 0) {
@@ -1460,9 +1474,15 @@ async function recoverPushCloudInBackground(rowsSnapshot) {
   }
 }
 
-/** جسم عمل الدمج والحفظ والعرض — يُلفّ بمهلة إجمالية حتى لا يبقى زر الاستعادة معلّقًا */
-async function recoverSalesMergeBody() {
-  setSyncStatus("جاري جمع النسَخ المحليّة ثم السحابة…", false);
+/** جسم عمل الدمج والحفظ والعرض — يُلفّ بمهلة إجمالية حتى لا يبقى زر الاستعادة معلّقًا
+ * @param {{ automatic?: boolean, skipCloudPush?: boolean }} [options]
+ *   automatic: لا تحريك العرض؛ رسائل مختصرة؛ لا تلمس شريط الحالة إذا لم يتغير شيء.
+ *   skipCloudPush: لا رفعًا للسَحَابة من هنا (يُستخدم عند الدخول عندما يتولّى activateAppSerialized الرفع). */
+async function recoverSalesMergeBody(options = {}) {
+  const automatic = options.automatic === true;
+  const skipCloudPush = options.skipCloudPush === true;
+
+  if (!automatic) setSyncStatus("جاري جمع النسَخ المحليّة ثم السحابة…", false);
   const before = state.records.length;
   const salvagePack = loadSalesFromAllLocalSnapshots();
   let merged = mergeSalesListsLocalRemote(salvagePack.list, state.records);
@@ -1501,12 +1521,19 @@ async function recoverSalesMergeBody() {
   const n = state.records.length;
 
   if (n === 0) {
-    setSyncStatus(
-      remotePullHadRows === false && salvagePack.sources === 0
-        ? "لم توجد أي نسخة للاستعادة في هذا المتصفّح أو على هذا الحساب السحابي."
-        : "لم يبق أي صف بعد الدمج (قد تكون كل النُّسَخ فارغة أو تالفة).",
-      false
-    );
+    if (!automatic) {
+      setSyncStatus(
+        remotePullHadRows === false && salvagePack.sources === 0
+          ? "لم توجد أي نسخة للاستعادة في هذا المتصفّح أو على هذا الحساب السحابي."
+          : "لم يبق أي صف بعد الدمج (قد تكون كل النُّسَخ فارغة أو تالفة).",
+        false
+      );
+    } else if (before > 0 || salvagePack.sources > 0 || remotePullHadRows || remotePullFailed) {
+      setSyncStatus(
+        "استعادة تلقائية: السجلّ فارغ بعد الدمج. إن لم يكن مقصودًا، استخدم من الإعدادات «استعادة المبيعات» يدويًا.",
+        false
+      );
+    }
     log("info", "recover_sales_merge_done", { salvageSources: salvagePack.sources, now: 0, before });
     return;
   }
@@ -1519,15 +1546,23 @@ async function recoverSalesMergeBody() {
       ? `تم الضم: عندك ${n} عملية (زاد ${gained} عن عدد المعروض سابقًا). راجع «سجل الأيام».`
       : `السجل الآن ${n} عملية؛ لم تُضاف صفوف جديدة (النُّسَخ أو السحابة مطابقة لما لديك أو لا يتوفر إلا هذا العدد).`;
   if (remotePullFailed) msg += " تعذّر جلب جزء السحابة لهذه المحاولة — أُكمِل الدمج المحلي فقط.";
-  const willCloudPush = !!(state.db && n > 0);
+  const willCloudPush = !!(state.db && n > 0 && !skipCloudPush);
   if (willCloudPush) {
     msg += " جارٍ رفع السحابة في الخلفية (لن يُعطَّل الزر طويلًا).";
   }
-  setSyncStatus(msg, gained > 0 || remotePullHadRows);
-
-  setMainView("daily");
-  scrollToPanel(dom.dailyLogSection || dom.workspaceTop);
-  closeSidebarDrawerIfMobile();
+  if (automatic) {
+    if (gained > 0) {
+      setSyncStatus(`استعادة تلقائية: زاد السجلّ ${gained} عملية — الإجمالي ${n}.`, true);
+    } else if (remotePullFailed && n > 0) {
+      setSyncStatus("استعادة تلقائية: تعذّر جلب السحابة؛ وُجدت بيانات من الجهاز فقط لهذه المرّة.", false);
+    }
+    /* لم يزد شيء ونجح الجلب: نترك رسالة activateAppSerialized كما هي */
+  } else {
+    setSyncStatus(msg, gained > 0 || remotePullHadRows);
+    setMainView("daily");
+    scrollToPanel(dom.dailyLogSection || dom.workspaceTop);
+    closeSidebarDrawerIfMobile();
+  }
 
   const cloudSnapshot = willCloudPush ? state.records.map((r) => ({ ...r })) : [];
   if (willCloudPush) void recoverPushCloudInBackground(cloudSnapshot);
