@@ -28,8 +28,7 @@ const SUPABASE_TABLE = "sales_records";
 const LOG_PREFIX = "[daily-sales]";
 const AUTH_MESSAGES = {
   invalidGmail: "أدخل Gmail صحيح (مثل name@gmail.com أو name@googlemail.com).",
-  shortPassword: "كلمة المرور لازم تكون 6 أحرف على الأقل.",
-  wrongPassword: "كلمة المرور خاطئة لهذا الحساب."
+  shortPassword: "كلمة المرور لازم تكون 6 أحرف على الأقل."
 };
 
 /** حسابات المستهلك على Google هي @gmail.com أو @googlemail.com فقط — نفس الصندوق. */
@@ -321,7 +320,6 @@ function setAuthStatus(text, ok = false) {
   if (!dom.authStatus) return;
   dom.authStatus.textContent = text;
   dom.authStatus.classList.toggle("ok", ok);
-  log("info", "auth_status", { ok });
 }
 
 function setSyncStatus(text, ok = false) {
@@ -333,7 +331,6 @@ function setSyncStatus(text, ok = false) {
 
 function setAuthBusy(isBusy) {
   state.authBusy = isBusy;
-  log("info", "auth_busy", { busy: isBusy });
   refreshAuthButtons();
 }
 
@@ -2886,7 +2883,6 @@ async function handlePasswordReset() {
 function bindAuthEvents() {
   if (state.authEventsBound) return;
   state.authEventsBound = true;
-  globalThis.__dailySalesAuthReady = true;
 
   dom.authForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
