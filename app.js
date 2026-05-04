@@ -107,8 +107,6 @@ const RECOVER_SALES_BTN_BUSY_AR = "جاري الاستعادة…";
 const RECOVER_SALES_MERGE_DEADLINE_MS = 50000;
 /** إن عُلِّقَ التنفيذ المتزامن فلا يصل إلى finally — نُعيد الزر يدويًا */
 const RECOVER_SALES_UI_SAFETY_MS = 56000;
-/** مهلة طلب كلمة المرور مع GoTrue؛ بدونها قد يبقى النص على «جاري التحقق…» */
-const SIGN_IN_WITH_PASSWORD_DEADLINE_MS = 45000;
 
 const dom = {
   form: document.getElementById("saleForm"),
@@ -2836,20 +2834,7 @@ async function handleLogin() {
   await runAuthAction("login", async () => {
     authTrace("login:start", { emailMasked: safeEmailForLog(email) });
     authTrace("login:request_signInWithPassword", {});
-    let data = null;
-    let error = null;
-    try {
-      const wrapped = await withTimeoutMs(
-        state.db.auth.signInWithPassword({ email, password }),
-        SIGN_IN_WITH_PASSWORD_DEADLINE_MS,
-        "انتهت مهلة انتظار خادم الدخول. تحقّق من الإنترنت أو VPN ثم حاول من جديد."
-      );
-      data = wrapped?.data ?? null;
-      error = wrapped?.error ?? null;
-    } catch (timeoutErr) {
-      setAuthStatus(timeoutErr?.message || "تعذّر الاتصال بخدمة الدخول.", false);
-      return;
-    }
+    const { data, error } = await state.db.auth.signInWithPassword({ email, password });
     if (error) {
       authTrace("login:failed", { message: error.message, status: error.status || null, code: error.code || null });
       if (error.status === 429) return setAuthStatus(formatRateLimitMessage(error), false);
@@ -2872,20 +2857,7 @@ async function handleSignup() {
   await runAuthAction("signup", async () => {
     authTrace("signup:start", { emailMasked: safeEmailForLog(email) });
     authTrace("signup:request_signUp", {});
-    let data = null;
-    let error = null;
-    try {
-      const wrapped = await withTimeoutMs(
-        signUpWithEmailPassword(email, password),
-        SIGN_IN_WITH_PASSWORD_DEADLINE_MS,
-        "انتهت مهلة انتظار الخادم. تحقّق من الإنترنت ثم حاول من جديد."
-      );
-      data = wrapped?.data ?? null;
-      error = wrapped?.error ?? null;
-    } catch (timeoutErr) {
-      setAuthStatus(timeoutErr?.message || "تعذّر الاتصال بخدمة إنشاء الحساب.", false);
-      return;
-    }
+    const { data, error } = await signUpWithEmailPassword(email, password);
     if (error) {
       authTrace("signup:failed", { message: error.message, status: error.status || null, code: error.code || null });
       if (error.status === 429) return setAuthStatus(formatRateLimitMessage(error), false);
