@@ -978,9 +978,10 @@ async function activateAppSerialized(user, statusSuffix = "", activateOptions = 
   setAuthStatus(`تم تسجيل الدخول بنجاح${statusSuffix}`, true);
 
   try {
+    const uidMerge = String(user?.id ?? state.currentUser?.id ?? "").trim();
     const localLoad = loadSalesFromAllLocalSnapshots();
     /** لقطات الجهاز القديمة لا تُعيد صفوفًا حُذفت عمدًا؛ الاستعادة اليدوية تمسح هذا السدّ وتعيد الضمّ كما كان. */
-    const local = filterSalvageSalesByUserTombstones(localLoad.list, user?.id ?? state.currentUser?.id);
+    const local = filterSalvageSalesByUserTombstones(localLoad.list, uidMerge);
     state.ideas = loadIdeas();
     state.expenses = loadExpenses();
     state.personalWallet = loadPersonalWallet();
@@ -991,6 +992,18 @@ async function activateAppSerialized(user, statusSuffix = "", activateOptions = 
     const remotePull0 = await loadRecordsFromRemote({ quiet: true });
     let remote = remotePull0.records;
     let remoteOk = remotePull0.ok;
+
+    /** صفّ بقي على السحابة رغم الحذف المحلي: نحذفه من الخادم ثم نعيد الجلب حتى لا يُدمَج من جديد. */
+    if (!isSalesClearPending() && remoteOk && remote.length > 0 && uidMerge) {
+      const tsPre = loadSalesTombstonesSet(uidMerge);
+      if (tsPre.size > 0 && remote.some((r) => isSalesRecordTombstoned(r, tsPre))) {
+        await purgeRemoteRowsMatchingSalesTombstones(remote, uidMerge);
+        const rpSync = await loadRecordsFromRemote({ quiet: true });
+        remote = rpSync.records;
+        remoteOk = rpSync.ok;
+      }
+    }
+    remote = filterSalvageSalesByUserTombstones(remote, uidMerge);
 
     authTrace("activate_app:data_loaded", {
       localCount: local.length,
@@ -1055,6 +1068,9 @@ async function activateAppSerialized(user, statusSuffix = "", activateOptions = 
         merged: state.records.length
       });
     }
+
+    /** نزيل من السجلّ النهائي ما وُسِم «حذفًا يدويًا» ولو عاد من استجابة السحابة قبل اكتمال حذفها. */
+    state.records = filterSalvageSalesByUserTombstones(state.records, uidMerge);
 
     /** إذا بقي السجل فارغًا رغم وجود خام في مفتاح المستخدم — لا نترك الواجهة تُظهر ضياعًا */
     if (!isSalesClearPending() && state.records.length === 0 && local.length > 0) {
@@ -1389,11 +1405,13 @@ function persistSalesTombstonesSet(set, userId) {
   } catch (_) {}
 }
 
-function rememberUserDeletedSaleRecord(record, userId) {
+function rememberUserDeletedSaleRecord(record, userId, explicitRowId) {
   const uid = String(userId ?? state.currentUser?.id ?? "").trim();
   if (!uid || !record) return;
   const ts = loadSalesTombstonesSet(uid);
   const cid = recordCanonicalId(record);
+  const ex = String(explicitRowId ?? "").trim();
+  if (ex) ts.add(ex);
   if (cid) ts.add(cid);
   ts.add(mergeKeyForRecord(record));
   persistSalesTombstonesSet(ts, uid);
@@ -1428,6 +1446,26 @@ function filterSalvageSalesByUserTombstones(list, userId) {
   const ts = loadSalesTombstonesSet(uid);
   if (ts.size === 0) return list;
   return list.filter((r) => !isSalesRecordTombstoned(r, ts));
+}
+
+/** يمحو من Supabase صفوفًا ما زالت عالقة رغم أن المستخدم حذفها محليًا — يُستدعَى قبل الدمّج عند وجود دفن. */
+async function purgeRemoteRowsMatchingSalesTombstones(remoteList, userId) {
+  const uid = String(userId || "").trim();
+  if (!state.db || !uid || !remoteList?.length) return;
+  const ts = loadSalesTombstonesSet(uid);
+  if (ts.size === 0) return;
+  const ids = new Set();
+  for (const r of remoteList) {
+    const id = recordCanonicalId(r);
+    if (id && isSalesRecordTombstoned(r, ts)) ids.add(id);
+  }
+  if (ids.size === 0) return;
+  for (const rid of ids) {
+    try {
+      await deleteRecordRemote(rid);
+      log("info", "sale_tombstone_remote_purge", { recordId: safeRecordIdForLog(rid) });
+    } catch (_) {}
+  }
 }
 
 function userRecoverSalesKey() {
@@ -1581,7 +1619,20 @@ async function recoverSalesMergeBody(options = {}) {
       remotePullFailed = !remotePull.ok;
       remotePullHadRows = remotePull.records.length > 0;
       if (remotePull.ok && remotePull.records.length > 0) {
-        merged = mergeSalesListsLocalRemote(remotePull.records, merged);
+        let remoteRows = remotePull.records;
+        if (automatic && state.currentUser?.id) {
+          const tsR = loadSalesTombstonesSet(state.currentUser.id);
+          if (tsR.size > 0 && remoteRows.some((r) => isSalesRecordTombstoned(r, tsR))) {
+            await purgeRemoteRowsMatchingSalesTombstones(remoteRows, state.currentUser.id);
+            const rp2 = await loadRecordsFromRemote({ quiet: true });
+            if (rp2.ok) {
+              remoteRows = rp2.records;
+              remotePullHadRows = remoteRows.length > 0;
+            }
+          }
+          remoteRows = filterSalvageSalesByUserTombstones(remoteRows, state.currentUser.id);
+        }
+        merged = mergeSalesListsLocalRemote(remoteRows, merged);
       }
     } catch (e) {
       remotePullFailed = true;
@@ -1593,6 +1644,9 @@ async function recoverSalesMergeBody(options = {}) {
   }
 
   merged.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.recordId || "").localeCompare(String(a.recordId || "")));
+  if (automatic && state.currentUser?.id) {
+    merged = filterSalvageSalesByUserTombstones(merged, state.currentUser.id);
+  }
   state.records = merged;
 
   ensureAllSalesRecordsHaveIds();
@@ -3265,7 +3319,7 @@ async function init() {
       } else setSyncStatus("تم حذف العملية من السجل المحلي.", true);
       log("info", "sale_deleted", { recordId: safeRecordIdForLog(id) });
       addDeletionLog(`حذف عملية بيع (${removed.product || id})`);
-      rememberUserDeletedSaleRecord(removed);
+      rememberUserDeletedSaleRecord(removed, state.currentUser?.id, id);
       return;
     }
 
