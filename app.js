@@ -2375,13 +2375,17 @@ function scrollAndFocusSaleFormForEdit() {
   });
 }
 
+/** حدود قريبة من E.164 (أقصى 15 رقمًا للرقم الدولي الكامل)؛ الأرقام فقط بعد إزالة + والمسافات والشرطات. */
+const INVESTOR_PHONE_MIN_DIGITS = 7;
+const INVESTOR_PHONE_MAX_DIGITS = 15;
+
 function investorPhoneDigits(raw) {
   return String(raw || "").replace(/\D/g, "");
 }
 
 function isValidInvestorPhone(raw) {
   const digits = investorPhoneDigits(raw);
-  return digits.length >= 8 && digits.length <= 15;
+  return digits.length >= INVESTOR_PHONE_MIN_DIGITS && digits.length <= INVESTOR_PHONE_MAX_DIGITS;
 }
 
 function computeIdea(base) {
@@ -3463,7 +3467,9 @@ async function init() {
     if (!saleDate) return alert("اختر تاريخ الاستلام.");
     if (!personName) return alert("أدخل اسم الشخص.");
     if (!isValidInvestorPhone(phoneRaw)) {
-      alert("أدخل رقم هاتف صالحًا (8 إلى 15 رقمًا).");
+      alert(
+        `أدخل رقم هاتف صالحًا بصيغة دولية (من ${INVESTOR_PHONE_MIN_DIGITS} إلى ${INVESTOR_PHONE_MAX_DIGITS} رقمًا بعد إزالة الرموز؛ يُقبل + ورمز الدولة).`
+      );
       f.phone.focus();
       return;
     }
@@ -3571,7 +3577,7 @@ async function init() {
       const phoneRaw = String(dom.ideaInvestorPhone?.value || "").trim();
       if (!isValidInvestorPhone(phoneRaw)) {
         alert(
-          "أدخل رقم هاتف صالح للتواصل قبل الإرسال إلى خانة المستثمرين (8 إلى 15 رقمًا، يمكن أن يبدأ رمز الدولة)."
+          `أدخل رقم هاتف صالحًا للتواصل قبل الإرسال إلى خانة المستثمرين (صيغة دولية؛ من ${INVESTOR_PHONE_MIN_DIGITS} إلى ${INVESTOR_PHONE_MAX_DIGITS} رقمًا مع رمز الدولة إن لزم).`
         );
         dom.ideaInvestorPhone?.focus();
         return;
