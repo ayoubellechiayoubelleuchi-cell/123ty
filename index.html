@@ -1602,23 +1602,23 @@
   </aside>
   <div id="authPage" class="auth-wrap">
     <div class="auth-card">
-      <h2>تسجيل الدخول بـ Gmail</h2>
+      <h2 data-i18n="auth.loginTitle">تسجيل الدخول بـ Gmail</h2>
       <div class="auth-box">
         <form id="authForm" autocomplete="on">
           <div class="grid">
             <div>
-              <label for="emailInput">Gmail</label>
+              <label for="emailInput" data-i18n="auth.email">Gmail</label>
               <input id="emailInput" name="email" type="email" autocomplete="email" placeholder="example@gmail.com" required />
             </div>
             <div>
-              <label for="passwordInput">كلمة المرور</label>
+              <label for="passwordInput" data-i18n="auth.password">كلمة المرور</label>
               <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="********" required />
             </div>
           </div>
           <div class="actions">
-            <button class="btn-primary-light" type="submit" id="loginBtn">دخول</button>
-            <button class="btn-ghost-light" type="button" id="signupBtn">إنشاء حساب بـ Gmail</button>
-            <button class="btn-ghost-light" type="button" id="resetPasswordBtn">نسيت كلمة المرور؟</button>
+            <button class="btn-primary-light" type="submit" id="loginBtn" data-i18n="auth.login">دخول</button>
+            <button class="btn-ghost-light" type="button" id="signupBtn" data-i18n="auth.signup">إنشاء حساب بـ Gmail</button>
+            <button class="btn-ghost-light" type="button" id="resetPasswordBtn" data-i18n="auth.reset">نسيت كلمة المرور؟</button>
           </div>
         </form>
         <div id="authStatus" class="auth-status"></div>
@@ -1630,8 +1630,8 @@
     <div id="sidebarBackdrop" class="sidebar-backdrop" aria-hidden="true"></div>
     <main class="main-workspace">
       <div class="workspace-inner" id="workspaceTop">
-        <h1 class="workspace-title">مشروعي</h1>
-        <div id="syncStatus" class="sync-status sync-status--global" aria-live="polite" role="status">جاهز.</div>
+        <h1 class="workspace-title" data-i18n="workspace.title">مشروعي</h1>
+        <div id="syncStatus" class="sync-status sync-status--global" aria-live="polite" role="status" data-i18n="sync.ready">جاهز.</div>
 
         <div class="form-stack">
           <div class="panel-card hidden-section" id="salesSectionCard">
@@ -1727,8 +1727,8 @@
               </div>
 
               <div class="actions">
-                <button class="btn-primary-light" type="submit" id="saleSubmitBtn">إضافة سجل اليوم</button>
-                <button class="btn-ghost-light hidden" type="button" id="cancelSaleEditBtn">إلغاء التعديل</button>
+                <button class="btn-primary-light" type="submit" id="saleSubmitBtn" data-i18n="sale.submitAdd">إضافة سجل اليوم</button>
+                <button class="btn-ghost-light hidden" type="button" id="cancelSaleEditBtn" data-i18n="sale.cancelEdit">إلغاء التعديل</button>
               </div>
             </form>
           </div>
@@ -1968,21 +1968,36 @@
         </div>
 
         <div class="panel-card hidden" id="settingsPageSection">
-          <h2>الإعدادات</h2>
-          <p class="lead">هذه صفحة إعدادات مستقلة. يمكن إضافة خيارات التحكم لاحقًا.</p>
-          <p id="deployUiHint" class="hint" style="margin-top: 10px; line-height: 1.6;">
+          <h2 data-i18n="settings.title">الإعدادات</h2>
+          <p class="lead" data-i18n="settings.lead">هذه صفحة إعدادات مستقلة. يمكن إضافة خيارات التحكم لاحقًا.</p>
+          <h3 class="form-section-title" style="margin-top: 10px" data-i18n="settings.langTitle">لغة الواجهة</h3>
+          <p class="hint" style="margin-top: 4px; line-height: 1.55" data-i18n="settings.langHint">
+            يُحفظ الاختيار في هذا المتصفّح. رسائل المزامنة والتنبيهات قد تبقى بالعربية حتى اكتمال الترجمة.
+          </p>
+          <div class="one-field" style="max-width: 420px; margin-bottom: 14px">
+            <label for="uiLangSelect" data-i18n="settings.langLabel">اللغة</label>
+            <select
+              id="uiLangSelect"
+              style="width: 100%; max-width: 360px; padding: 10px 12px; border-radius: 10px; background: var(--elevated); border: 1px solid var(--stroke); color: var(--text); font-family: inherit; font-size: 15px"
+            >
+              <option value="ar">العربية</option>
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+            </select>
+          </div>
+          <p id="deployUiHint" class="hint" style="margin-top: 10px; line-height: 1.6" data-i18n-html="settings.deployHtml">
             <strong>واجهة 2026‑05‑02</strong> — سمة داكنة، شريط سفلي ≤1024px، وتحسينات للأفكار/الوصيات/المستثمرين. إن ظهر الشكل القديم: جرّب نافذة خاصة أو امسح بيانات الموقع من إعدادات المتصفح لهذا الرابط ثم حدِّث الصفحة.
           </p>
-          <h3 class="form-section-title" style="margin-top: 12px;">إدارة السجلات</h3>
-          <p class="hint" style="margin-bottom: 8px">
+          <h3 class="form-section-title" style="margin-top: 12px" data-i18n="settings.recordsTitle">إدارة السجلات</h3>
+          <p class="hint" style="margin-bottom: 8px" data-i18n="settings.recordsHint">
             بعد تسجيل الدخول أو تحديث الصفحة يُدمَج تلقائيًا ما يمكن من نُسَخ هذا المتصفّح وما على Supabase؛ زر «استعادة المبيعات» يعيد المحاولة يدويًا عند الشك. قبل المسح جرّب الاستعادة إن اختفت بيانات.
           </p>
           <div class="actions">
-            <button class="btn-primary-light" type="button" id="recoverSalesBtn">استعادة المبيعات من الجهاز والسحابة</button>
-            <button class="btn-ghost-light" type="button" id="resetIdeas">مسح كل الأفكار</button>
-            <button class="btn-ghost-light" type="button" id="resetData">مسح كل المبيعات</button>
+            <button class="btn-primary-light" type="button" id="recoverSalesBtn" data-i18n="settings.recoverSales">استعادة المبيعات من الجهاز والسحابة</button>
+            <button class="btn-ghost-light" type="button" id="resetIdeas" data-i18n="settings.resetIdeas">مسح كل الأفكار</button>
+            <button class="btn-ghost-light" type="button" id="resetData" data-i18n="settings.resetAllSales">مسح كل المبيعات</button>
           </div>
-          <h3 class="form-section-title" style="margin-top: 14px;">سجل ما تم حذفه</h3>
+          <h3 class="form-section-title" style="margin-top: 14px" data-i18n="settings.deletionTitle">سجل ما تم حذفه</h3>
           <div class="rank-list" id="deletionLogList">
             <div class="rank-item"><span>لا توجد عمليات حذف بعد</span><strong>—</strong></div>
           </div>
@@ -2070,70 +2085,70 @@
       </div>
     </main>
 
-    <aside id="appSidebar" class="app-sidebar" aria-label="القائمة الرئيسية">
-      <button type="button" class="sidebar-brand" id="navProjectHome"><span class="icon">⚙️</span> مشروعي</button>
-      <nav class="sidebar-nav" aria-label="التنقل — القائمة الجانبية">
-        <button type="button" class="nav-item" id="navSales" data-section="sales" title="تسجيل عملية بيع يومية وجداول الربح">
-          <span class="nav-item-ico" aria-hidden="true">💰</span><span class="nav-item-label">المبيعات اليومية</span>
+    <aside id="appSidebar" class="app-sidebar" data-i18n-aria-label="nav.sidebarAria" aria-label="القائمة الرئيسية">
+      <button type="button" class="sidebar-brand" id="navProjectHome"><span class="icon">⚙️</span><span data-i18n="nav.brand">مشروعي</span></button>
+      <nav class="sidebar-nav" data-i18n-aria-label="nav.sidebarNavAria" aria-label="التنقل — القائمة الجانبية">
+        <button type="button" class="nav-item" id="navSales" data-section="sales" data-i18n-title="nav.salesTitle" title="تسجيل عملية بيع يومية وجداول الربح">
+          <span class="nav-item-ico" aria-hidden="true">💰</span><span class="nav-item-label" data-i18n="nav.sales">المبيعات اليومية</span>
         </button>
-        <button type="button" class="nav-item" id="navDailyLog" title="عرض وتعديل كل عمليات البيع المسجّلة">
-          <span class="nav-item-ico" aria-hidden="true">📋</span><span class="nav-item-label">سجل الأيام</span>
+        <button type="button" class="nav-item" id="navDailyLog" data-i18n-title="nav.dailyLogTitle" title="عرض وتعديل كل عمليات البيع المسجّلة">
+          <span class="nav-item-ico" aria-hidden="true">📋</span><span class="nav-item-label" data-i18n="nav.dailyLog">سجل الأيام</span>
         </button>
-        <button type="button" class="nav-item" id="navIdeasForm" data-section="ideas" title="عروض الأفكار والهوامش المتوقعة">
-          <span class="nav-item-ico" aria-hidden="true">💡</span><span class="nav-item-label">خانة الأفكار</span>
+        <button type="button" class="nav-item" id="navIdeasForm" data-section="ideas" data-i18n-title="nav.ideasTitle" title="عروض الأفكار والهوامش المتوقعة">
+          <span class="nav-item-ico" aria-hidden="true">💡</span><span class="nav-item-label" data-i18n="nav.ideas">خانة الأفكار</span>
         </button>
-        <button type="button" class="nav-item" id="navExpenses" title="تسجيل المشتريات والمصروفات">
-          <span class="nav-item-ico" aria-hidden="true">🧾</span><span class="nav-item-label">خانة المصروفات</span>
+        <button type="button" class="nav-item" id="navExpenses" data-i18n-title="nav.expensesTitle" title="تسجيل المشتريات والمصروفات">
+          <span class="nav-item-ico" aria-hidden="true">🧾</span><span class="nav-item-label" data-i18n="nav.expenses">خانة المصروفات</span>
         </button>
-        <button type="button" class="nav-item" id="navPersonalWallet" title="رصيدك الخاص والمتبقي بعد طرح المصروفات">
-          <span class="nav-item-ico" aria-hidden="true">👛</span><span class="nav-item-label">المال الخاص</span>
+        <button type="button" class="nav-item" id="navPersonalWallet" data-i18n-title="nav.walletTitle" title="رصيدك الخاص والمتبقي بعد طرح المصروفات">
+          <span class="nav-item-ico" aria-hidden="true">👛</span><span class="nav-item-label" data-i18n="nav.wallet">المال الخاص</span>
         </button>
-        <button type="button" class="nav-item" id="navWasiyyat" title="متابعة مبيعات غير مكتملة والوصايا">
-          <span class="nav-item-ico" aria-hidden="true">📜</span><span class="nav-item-label">خانة الوصيات</span>
+        <button type="button" class="nav-item" id="navWasiyyat" data-i18n-title="nav.wasiyyatTitle" title="متابعة مبيعات غير مكتملة والوصايا">
+          <span class="nav-item-ico" aria-hidden="true">📜</span><span class="nav-item-label" data-i18n="nav.wasiyyat">خانة الوصيات</span>
         </button>
-        <button type="button" class="nav-item" id="navInvestors" title="أفكار مُرسلة عند عدم توفر رأس مال">
-          <span class="nav-item-ico" aria-hidden="true">👥</span><span class="nav-item-label">خانة المستثمرين</span>
+        <button type="button" class="nav-item" id="navInvestors" data-i18n-title="nav.investorsTitle" title="أفكار مُرسلة عند عدم توفر رأس مال">
+          <span class="nav-item-ico" aria-hidden="true">👥</span><span class="nav-item-label" data-i18n="nav.investors">خانة المستثمرين</span>
         </button>
-        <button type="button" class="nav-item" id="navSummary" title="لوحة موحّدة: مبيعات، مصروفات، وصيات">
-          <span class="nav-item-ico" aria-hidden="true">📊</span><span class="nav-item-label">ملخص المشروع</span>
+        <button type="button" class="nav-item" id="navSummary" data-i18n-title="nav.summaryTitle" title="لوحة موحّدة: مبيعات، مصروفات، وصيات">
+          <span class="nav-item-ico" aria-hidden="true">📊</span><span class="nav-item-label" data-i18n="nav.summary">ملخص المشروع</span>
         </button>
-        <button type="button" class="nav-item" id="navSettings" title="استعادة البيانات، المسح، وتسجيل الخروج">
-          <span class="nav-item-ico" aria-hidden="true">⚙️</span><span class="nav-item-label">الإعدادات</span>
+        <button type="button" class="nav-item" id="navSettings" data-i18n-title="nav.settingsTitle" title="استعادة البيانات، المسح، وتسجيل الخروج">
+          <span class="nav-item-ico" aria-hidden="true">⚙️</span><span class="nav-item-label" data-i18n="nav.settings">الإعدادات</span>
         </button>
       </nav>
 
       <div class="sidebar-widget">
         <div class="sidebar-widget-row">
-          <span>إجمالي الربح</span>
+          <span data-i18n="sidebar.totalProfit">إجمالي الربح</span>
           <span class="pill-trend" id="sidebarProfitTrend">—</span>
         </div>
-        <div class="sidebar-widget-row"><span>صافي الربح</span><b id="sidebarNetProfit">0.00 د</b></div>
-        <div class="sidebar-widget-row"><span>رأس المال الحالي</span><b id="sidebarCapital">0.00 د</b></div>
-        <div class="sidebar-widget-row"><span>المستحقات (آجل)</span><b id="sidebarReceivables">0.00 د</b></div>
+        <div class="sidebar-widget-row"><span data-i18n="sidebar.netProfit">صافي الربح</span><b id="sidebarNetProfit">0.00 د</b></div>
+        <div class="sidebar-widget-row"><span data-i18n="sidebar.capital">رأس المال الحالي</span><b id="sidebarCapital">0.00 د</b></div>
+        <div class="sidebar-widget-row"><span data-i18n="sidebar.receivables">المستحقات (آجل)</span><b id="sidebarReceivables">0.00 د</b></div>
         <div class="sidebar-widget-divider" aria-hidden="true"></div>
-        <div class="sidebar-widget-row"><span>المال الخاص (المتبقي)</span><b id="sidebarPersonalRemaining">—</b></div>
+        <div class="sidebar-widget-row"><span data-i18n="sidebar.personalWallet">المال الخاص (المتبقي)</span><b id="sidebarPersonalRemaining">—</b></div>
       </div>
 
-      <button type="button" class="sidebar-logout" id="logoutBtnApp">تسجيل الخروج</button>
+      <button type="button" class="sidebar-logout" id="logoutBtnApp" data-i18n="logout">تسجيل الخروج</button>
     </aside>
 
-    <button type="button" class="sidebar-edge-btn" id="sidebarEdgeBtn" aria-controls="appSidebar" aria-expanded="false" aria-label="فتح القائمة">
+    <button type="button" class="sidebar-edge-btn" id="sidebarEdgeBtn" aria-controls="appSidebar" aria-expanded="false" data-i18n-aria-label="edge.openAria" aria-label="فتح القائمة">
       <span class="sidebar-edge-icon">⚙️</span>
-      <span class="sidebar-edge-label">مشروعي</span>
+      <span class="sidebar-edge-label" data-i18n="edge.brand">مشروعي</span>
     </button>
 
-    <nav class="bottom-nav" id="bottomNav" aria-label="التنقل — الشريط السفلي">
-      <button type="button" data-bottom-view="summary" id="bnHome"><span class="bn-ico" aria-hidden="true">🏠</span><span>الرئيسية</span></button>
-      <button type="button" data-bottom-view="daily" id="bnDaily"><span class="bn-ico" aria-hidden="true">📊</span><span>السجل</span></button>
+    <nav class="bottom-nav" id="bottomNav" data-i18n-aria-label="nav.bottomNavAria" aria-label="التنقل — الشريط السفلي">
+      <button type="button" data-bottom-view="summary" id="bnHome"><span class="bn-ico" aria-hidden="true">🏠</span><span data-i18n="bn.home">الرئيسية</span></button>
+      <button type="button" data-bottom-view="daily" id="bnDaily"><span class="bn-ico" aria-hidden="true">📊</span><span data-i18n="bn.daily">السجل</span></button>
       <div class="fab-wrap">
-        <button type="button" class="fab" id="bnFab" aria-label="تسجيل بيع جديد">+</button>
+        <button type="button" class="fab" id="bnFab" data-i18n-aria-label="bn.fabAria" aria-label="تسجيل بيع جديد">+</button>
       </div>
-      <button type="button" data-bottom-view="ideas" id="bnIdeas"><span class="bn-ico" aria-hidden="true">💡</span><span>أفكار</span></button>
-      <button type="button" data-bottom-view="investors" id="bnInvestors"><span class="bn-ico" aria-hidden="true">👥</span><span>مستثمرون</span></button>
+      <button type="button" data-bottom-view="ideas" id="bnIdeas"><span class="bn-ico" aria-hidden="true">💡</span><span data-i18n="bn.ideas">أفكار</span></button>
+      <button type="button" data-bottom-view="investors" id="bnInvestors"><span class="bn-ico" aria-hidden="true">👥</span><span data-i18n="bn.investors">مستثمرون</span></button>
     </nav>
   </div>
 
   <script defer src="./supabase-js-v2.min.js?v=20260202b"></script>
-  <script defer src="./app.js?v=20260505j"></script>
+  <script defer src="./app.js?v=20260505k"></script>
 </body>
 </html>

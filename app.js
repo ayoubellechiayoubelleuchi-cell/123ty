@@ -31,6 +31,443 @@ const AUTH_MESSAGES = {
   shortPassword: "كلمة المرور لازم تكون 6 أحرف على الأقل."
 };
 
+const UI_LANG_STORAGE_KEY = `${STORAGE_KEY}:ui-lang`;
+
+function normalizeUiLang(code) {
+  const c = String(code || "")
+    .trim()
+    .toLowerCase();
+  if (c === "en" || c === "fr") return c;
+  return "ar";
+}
+
+function getUiLang() {
+  try {
+    return normalizeUiLang(localStorage.getItem(UI_LANG_STORAGE_KEY));
+  } catch (_) {
+    return "ar";
+  }
+}
+
+function setUiLang(code) {
+  const lang = normalizeUiLang(code);
+  try {
+    localStorage.setItem(UI_LANG_STORAGE_KEY, lang);
+  } catch (_) {}
+  return lang;
+}
+
+/** نصوص الواجهة: العربية كاملة؛ الإنجليزية والفرنسية للعناصر الأساسية (يمكن توسيع المفاتيح لاحقًا). */
+const UI_STRINGS = {
+  ar: {
+    "app.title": "مشروعي — تسجيل المبيعات",
+    "sync.ready": "جاهز.",
+    "auth.systemReady": "النظام جاهز. يمكنك تسجيل الدخول أو إنشاء حساب.",
+    "auth.loginTitle": "تسجيل الدخول بـ Gmail",
+    "auth.email": "Gmail",
+    "auth.password": "كلمة المرور",
+    "auth.login": "دخول",
+    "auth.signup": "إنشاء حساب بـ Gmail",
+    "auth.reset": "نسيت كلمة المرور؟",
+    "workspace.title": "مشروعي",
+    "nav.brand": "مشروعي",
+    "nav.sales": "المبيعات اليومية",
+    "nav.salesTitle": "تسجيل عملية بيع يومية وجداول الربح",
+    "nav.dailyLog": "سجل الأيام",
+    "nav.dailyLogTitle": "عرض وتعديل كل عمليات البيع المسجّلة",
+    "nav.ideas": "خانة الأفكار",
+    "nav.ideasTitle": "عروض الأفكار والهوامش المتوقعة",
+    "nav.expenses": "خانة المصروفات",
+    "nav.expensesTitle": "تسجيل المشتريات والمصروفات",
+    "nav.wallet": "المال الخاص",
+    "nav.walletTitle": "رصيدك الخاص والمتبقي بعد طرح المصروفات",
+    "nav.wasiyyat": "خانة الوصيات",
+    "nav.wasiyyatTitle": "متابعة مبيعات غير مكتملة والوصايا",
+    "nav.investors": "خانة المستثمرين",
+    "nav.investorsTitle": "أفكار مُرسلة عند عدم توفر رأس مال",
+    "nav.summary": "ملخص المشروع",
+    "nav.summaryTitle": "لوحة موحّدة: مبيعات، مصروفات، وصيات",
+    "nav.settings": "الإعدادات",
+    "nav.settingsTitle": "استعادة البيانات، المسح، وتسجيل الخروج",
+    "nav.sidebarAria": "القائمة الرئيسية",
+    "nav.sidebarNavAria": "التنقل — القائمة الجانبية",
+    "nav.bottomNavAria": "التنقل — الشريط السفلي",
+    "sidebar.totalProfit": "إجمالي الربح",
+    "sidebar.netProfit": "صافي الربح",
+    "sidebar.capital": "رأس المال الحالي",
+    "sidebar.receivables": "المستحقات (آجل)",
+    "sidebar.personalWallet": "المال الخاص (المتبقي)",
+    "sidebar.trendActive": "+ نشاط",
+    "sidebar.trendWarn": "تنبيه",
+    "sidebar.trendFlat": "متعادل",
+    "logout": "تسجيل الخروج",
+    "edge.openAria": "فتح القائمة",
+    "edge.brand": "مشروعي",
+    "bn.home": "الرئيسية",
+    "bn.daily": "السجل",
+    "bn.fabAria": "تسجيل بيع جديد",
+    "bn.ideas": "أفكار",
+    "bn.investors": "مستثمرون",
+    "settings.title": "الإعدادات",
+    "settings.lead": "هذه صفحة إعدادات مستقلة. يمكن إضافة خيارات التحكم لاحقًا.",
+    "settings.deployHtml":
+      "<strong>واجهة 2026‑05‑02</strong> — سمة داكنة، شريط سفلي ≤1024px، وتحسينات للأفكار/الوصيات/المستثمرين. إن ظهر الشكل القديم: جرّب نافذة خاصة أو امسح بيانات الموقع من إعدادات المتصفح لهذا الرابط ثم حدِّث الصفحة.",
+    "settings.langTitle": "لغة الواجهة",
+    "settings.langHint": "يُحفظ الاختيار في هذا المتصفّح. رسائل المزامنة والتنبيهات قد تبقى بالعربية حتى اكتمال الترجمة.",
+    "settings.langLabel": "اللغة",
+    "settings.recordsTitle": "إدارة السجلات",
+    "settings.recordsHint":
+      "بعد تسجيل الدخول أو تحديث الصفحة يُدمَج تلقائيًا ما يمكن من نُسَخ هذا المتصفّح وما على Supabase؛ زر «استعادة المبيعات» يعيد المحاولة يدويًا عند الشك. قبل المسح جرّب الاستعادة إن اختفت بيانات.",
+    "settings.recoverSales": "استعادة المبيعات من الجهاز والسحابة",
+    "settings.recoverBusy": "جاري الاستعادة…",
+    "settings.resetIdeas": "مسح كل الأفكار",
+    "settings.resetAllSales": "مسح كل المبيعات",
+    "settings.deletionTitle": "سجل ما تم حذفه",
+    "sale.submitAdd": "إضافة سجل اليوم",
+    "sale.submitSave": "حفظ التعديلات",
+    "sale.cancelEdit": "إلغاء التعديل",
+    "sale.cardTotalSale": "إجمالي البيع",
+    "sale.cardUnpaidOrigin": "ما لم يُدفع من الفاتورة حتى الآن",
+    "sale.cardNoUnpaid": "لا يوجد آجل مسجّل",
+    "sale.cardDateWritten": "التاريخ الذي كُتب",
+    "sale.cardRemain": "متبقي الآجل",
+    "sale.cardRemainZero": "لا يتبقى",
+    "sale.cardPaid": "المدفوع",
+    "sale.cardCost": "التكلفة",
+    "sale.cardProfit": "الربح",
+    "sale.cardReinvest": "10% استثمار",
+    "sale.cardNetProfit": "صافي الربح",
+    "sale.cardNewCap": "رأس المال الجديد",
+    "sale.debtBlockTitle": "دفع الدين",
+    "sale.debtClearedTag": "يتم دفع الدين",
+    "sale.debtNoDateHint": "لم يُخزّن تاريخ التحصيل بعد",
+    "sale.noUnpaidLine": "لا يوجد آجل مسجّل",
+    "sale.payDebtBtn": "تسجيل دفع الدين",
+    "sale.edit": "تعديل",
+    "sale.delete": "حذف",
+    "summary.emptyDaily": "لا توجد بيانات يومية بعد",
+    "summary.emptyMonthly": "لا توجد بيانات شهرية بعد",
+    "deletion.empty": "لا توجد عمليات حذف بعد",
+    "insights.donutLine": "محصّل: {paid} | غير مدفوع: {unpaid} | استثمار: {reinvest}",
+    "insights.donutEmpty": "لا توجد بيانات مبيعات بعد.",
+    "insights.lineLine": "آخر يوم: {latest} | أعلى يوم: {max}",
+    "insights.lineEmpty": "أضف مبيعات لأيام متعددة لعرض التطور.",
+    "insights.bestEmpty": "لا توجد أفكار كافية بعد",
+    "idea.typeProduct": "منتج",
+    "idea.typeService": "خدمة",
+    "idea.priceLabelProduct": "سعر البيع المتوقع (د)",
+    "idea.priceLabelService": "سعر الخدمة المتوقع (د)",
+    "idea.qtyLabelProduct": "الكمية المتوقعة",
+    "idea.qtyLabelService": "عدد الزبائن المتوقع",
+    "idea.qtyPhProduct": "10",
+    "idea.qtyPhService": "عدد الزبائن (مثال: 10)",
+    "idea.typeHintProduct":
+      "اختر النوع قبل إدخال الفكرة: <strong>منتج = بيع + مخزون + الكمية المتوقعة</strong> — <strong>خدمة = عمل + زبائن + عدد الزبائن المتوقع</strong>",
+    "idea.typeHintService":
+      "اختر النوع قبل إدخال الفكرة: <strong>منتج = بيع + مخزون + الكمية المتوقعة</strong> — <strong>خدمة = عمل + زبائن + عدد الزبائن المتوقع</strong>",
+    "idea.cardCapital": "رأس المال",
+    "idea.cardPrice": "السعر",
+    "idea.cardQty": "الكمية",
+    "idea.cardExpectedSales": "إجمالي البيع",
+    "idea.cardExpectedProfit": "الربح المتوقع",
+    "idea.cardMargin": "الهامش",
+    "expense.amount": "الثمن",
+    "btn.delete": "حذف"
+  },
+  en: {
+    "app.title": "My project — Daily sales",
+    "sync.ready": "Ready.",
+    "auth.systemReady": "System ready. Sign in or create an account.",
+    "auth.loginTitle": "Sign in with Gmail",
+    "auth.email": "Gmail",
+    "auth.password": "Password",
+    "auth.login": "Sign in",
+    "auth.signup": "Create Gmail account",
+    "auth.reset": "Forgot password?",
+    "workspace.title": "My project",
+    "nav.brand": "My project",
+    "nav.sales": "Daily sales",
+    "nav.salesTitle": "Record a sale and profit tables",
+    "nav.dailyLog": "Daily log",
+    "nav.dailyLogTitle": "View and edit recorded sales",
+    "nav.ideas": "Ideas",
+    "nav.ideasTitle": "Idea pitches and estimates",
+    "nav.expenses": "Expenses",
+    "nav.expensesTitle": "Purchases and expenses",
+    "nav.wallet": "Personal wallet",
+    "nav.walletTitle": "Your balance after expenses",
+    "nav.wasiyyat": "Consignments",
+    "nav.wasiyyatTitle": "Incomplete sales and consignments",
+    "nav.investors": "Investors",
+    "nav.investorsTitle": "Ideas sent when you have no capital",
+    "nav.summary": "Project summary",
+    "nav.summaryTitle": "Sales, expenses, and consignments",
+    "nav.settings": "Settings",
+    "nav.settingsTitle": "Backup, reset, and sign out",
+    "nav.sidebarAria": "Main menu",
+    "nav.sidebarNavAria": "Sidebar navigation",
+    "nav.bottomNavAria": "Bottom navigation",
+    "sidebar.totalProfit": "Total profit",
+    "sidebar.netProfit": "Net profit",
+    "sidebar.capital": "Current capital",
+    "sidebar.receivables": "Receivables (credit)",
+    "sidebar.personalWallet": "Personal wallet (remaining)",
+    "sidebar.trendActive": "+ active",
+    "sidebar.trendWarn": "Warning",
+    "sidebar.trendFlat": "Flat",
+    "logout": "Sign out",
+    "edge.openAria": "Open menu",
+    "edge.brand": "My project",
+    "bn.home": "Home",
+    "bn.daily": "Log",
+    "bn.fabAria": "New sale",
+    "bn.ideas": "Ideas",
+    "bn.investors": "Investors",
+    "settings.title": "Settings",
+    "settings.lead": "Standalone settings page. More options can be added later.",
+    "settings.deployHtml":
+      "<strong>UI 2026-05-02</strong> — Dark theme, bottom bar on small screens. If the layout looks old: try a private window or clear site data for this URL, then hard refresh.",
+    "settings.langTitle": "Interface language",
+    "settings.langHint": "Saved in this browser. Sync toasts and some alerts may stay in Arabic until fully translated.",
+    "settings.langLabel": "Language",
+    "settings.recordsTitle": "Data management",
+    "settings.recordsHint":
+      "After sign-in or refresh, local snapshots merge with Supabase. Use “Restore sales” if data looks wrong. Try restore before wiping data.",
+    "settings.recoverSales": "Restore sales (device + cloud)",
+    "settings.recoverBusy": "Restoring…",
+    "settings.resetIdeas": "Clear all ideas",
+    "settings.resetAllSales": "Clear all sales",
+    "settings.deletionTitle": "Deletion log",
+    "sale.submitAdd": "Add today’s entry",
+    "sale.submitSave": "Save changes",
+    "sale.cancelEdit": "Cancel edit",
+    "sale.cardTotalSale": "Total sale",
+    "sale.cardUnpaidOrigin": "Unpaid from invoice so far",
+    "sale.cardNoUnpaid": "No receivable recorded",
+    "sale.cardDateWritten": "Recorded payment date",
+    "sale.cardRemain": "Remaining receivable",
+    "sale.cardRemainZero": "none left",
+    "sale.cardPaid": "Collected",
+    "sale.cardCost": "Cost",
+    "sale.cardProfit": "Profit",
+    "sale.cardReinvest": "10% reinvest",
+    "sale.cardNetProfit": "Net profit",
+    "sale.cardNewCap": "New capital",
+    "sale.debtBlockTitle": "Debt payment",
+    "sale.debtClearedTag": "Debt settled",
+    "sale.debtNoDateHint": "Settlement date not stored yet",
+    "sale.noUnpaidLine": "No receivable recorded",
+    "sale.payDebtBtn": "Record debt payment",
+    "sale.edit": "Edit",
+    "sale.delete": "Delete",
+    "summary.emptyDaily": "No daily totals yet",
+    "summary.emptyMonthly": "No monthly totals yet",
+    "deletion.empty": "No deletions yet",
+    "insights.donutLine": "Collected: {paid} | Unpaid: {unpaid} | Reinvest: {reinvest}",
+    "insights.donutEmpty": "No sales data yet.",
+    "insights.lineLine": "Last day: {latest} | Peak day: {max}",
+    "insights.lineEmpty": "Add sales on several days to see the trend.",
+    "insights.bestEmpty": "Not enough ideas yet",
+    "idea.typeProduct": "Product",
+    "idea.typeService": "Service",
+    "idea.priceLabelProduct": "Expected sale price (D)",
+    "idea.priceLabelService": "Expected service price (D)",
+    "idea.qtyLabelProduct": "Expected quantity",
+    "idea.qtyLabelService": "Expected customers",
+    "idea.qtyPhProduct": "10",
+    "idea.qtyPhService": "Customers (e.g. 10)",
+    "idea.typeHintProduct":
+      "Pick a type first: <strong>Product = stock + quantity</strong> — <strong>Service = work + customers</strong>",
+    "idea.typeHintService":
+      "Pick a type first: <strong>Product = stock + quantity</strong> — <strong>Service = work + customers</strong>",
+    "idea.cardCapital": "Capital",
+    "idea.cardPrice": "Price",
+    "idea.cardQty": "Quantity",
+    "idea.cardExpectedSales": "Total sale",
+    "idea.cardExpectedProfit": "Expected profit",
+    "idea.cardMargin": "Margin",
+    "expense.amount": "Amount",
+    "btn.delete": "Delete"
+  },
+  fr: {
+    "app.title": "Mon projet — Ventes quotidiennes",
+    "sync.ready": "Prêt.",
+    "auth.systemReady": "Système prêt. Connectez-vous ou créez un compte.",
+    "auth.loginTitle": "Connexion avec Gmail",
+    "auth.email": "Gmail",
+    "auth.password": "Mot de passe",
+    "auth.login": "Connexion",
+    "auth.signup": "Créer un compte Gmail",
+    "auth.reset": "Mot de passe oublié ?",
+    "workspace.title": "Mon projet",
+    "nav.brand": "Mon projet",
+    "nav.sales": "Ventes du jour",
+    "nav.salesTitle": "Enregistrer une vente et les marges",
+    "nav.dailyLog": "Journal",
+    "nav.dailyLogTitle": "Voir et modifier les ventes",
+    "nav.ideas": "Idées",
+    "nav.ideasTitle": "Pitches et estimations",
+    "nav.expenses": "Dépenses",
+    "nav.expensesTitle": "Achats et dépenses",
+    "nav.wallet": "Portefeuille perso",
+    "nav.walletTitle": "Solde après dépenses",
+    "nav.wasiyyat": "Consignations",
+    "nav.wasiyyatTitle": "Ventes incomplètes",
+    "nav.investors": "Investisseurs",
+    "nav.investorsTitle": "Idées envoyées sans capital",
+    "nav.summary": "Résumé du projet",
+    "nav.summaryTitle": "Ventes, dépenses, consignations",
+    "nav.settings": "Paramètres",
+    "nav.settingsTitle": "Sauvegarde, effacement, déconnexion",
+    "nav.sidebarAria": "Menu principal",
+    "nav.sidebarNavAria": "Navigation latérale",
+    "nav.bottomNavAria": "Navigation du bas",
+    "sidebar.totalProfit": "Profit total",
+    "sidebar.netProfit": "Profit net",
+    "sidebar.capital": "Capital actuel",
+    "sidebar.receivables": "Créances",
+    "sidebar.personalWallet": "Portefeuille (restant)",
+    "sidebar.trendActive": "+ actif",
+    "sidebar.trendWarn": "Alerte",
+    "sidebar.trendFlat": "Stable",
+    "logout": "Déconnexion",
+    "edge.openAria": "Ouvrir le menu",
+    "edge.brand": "Mon projet",
+    "bn.home": "Accueil",
+    "bn.daily": "Journal",
+    "bn.fabAria": "Nouvelle vente",
+    "bn.ideas": "Idées",
+    "bn.investors": "Investisseurs",
+    "settings.title": "Paramètres",
+    "settings.lead": "Page de réglages. D’autres options pourront être ajoutées.",
+    "settings.deployHtml":
+      "<strong>UI 2026-05-02</strong> — Thème sombre, barre du bas sur petits écrans. Si l’affichage semble ancien : fenêtre privée ou effacer les données du site, puis rechargement forcé.",
+    "settings.langTitle": "Langue de l’interface",
+    "settings.langHint": "Enregistré dans ce navigateur. Certains messages peuvent rester en arabe.",
+    "settings.langLabel": "Langue",
+    "settings.recordsTitle": "Gestion des données",
+    "settings.recordsHint":
+      "Après connexion ou actualisation, fusion locale avec Supabase. Utilisez « Restaurer les ventes » en cas de doute. Essayez avant d’effacer.",
+    "settings.recoverSales": "Restaurer les ventes (appareil + cloud)",
+    "settings.recoverBusy": "Restauration…",
+    "settings.resetIdeas": "Effacer toutes les idées",
+    "settings.resetAllSales": "Effacer toutes les ventes",
+    "settings.deletionTitle": "Journal des suppressions",
+    "sale.submitAdd": "Ajouter l’entrée du jour",
+    "sale.submitSave": "Enregistrer",
+    "sale.cancelEdit": "Annuler",
+    "sale.cardTotalSale": "Vente totale",
+    "sale.cardUnpaidOrigin": "Non payé sur la facture à ce jour",
+    "sale.cardNoUnpaid": "Aucune créance saisie",
+    "sale.cardDateWritten": "Date saisie",
+    "sale.cardRemain": "Créance restante",
+    "sale.cardRemainZero": "rien ne reste",
+    "sale.cardPaid": "Encaissé",
+    "sale.cardCost": "Coût",
+    "sale.cardProfit": "Profit",
+    "sale.cardReinvest": "10 % réinvestissement",
+    "sale.cardNetProfit": "Profit net",
+    "sale.cardNewCap": "Nouveau capital",
+    "sale.debtBlockTitle": "Paiement du solde",
+    "sale.debtClearedTag": "Dette soldée",
+    "sale.debtNoDateHint": "Date d’encaissement non enregistrée",
+    "sale.noUnpaidLine": "Aucune créance saisie",
+    "sale.payDebtBtn": "Enregistrer le paiement",
+    "sale.edit": "Modifier",
+    "sale.delete": "Supprimer",
+    "summary.emptyDaily": "Pas encore de totaux journaliers",
+    "summary.emptyMonthly": "Pas encore de totaux mensuels",
+    "deletion.empty": "Aucune suppression",
+    "insights.donutLine": "Encaissé : {paid} | Non payé : {unpaid} | Réinvest. : {reinvest}",
+    "insights.donutEmpty": "Pas encore de données de vente.",
+    "insights.lineLine": "Dernier jour : {latest} | Pic : {max}",
+    "insights.lineEmpty": "Ajoutez des ventes sur plusieurs jours.",
+    "insights.bestEmpty": "Pas assez d’idées",
+    "idea.typeProduct": "Produit",
+    "idea.typeService": "Service",
+    "idea.priceLabelProduct": "Prix de vente prévu (D)",
+    "idea.priceLabelService": "Prix du service prévu (D)",
+    "idea.qtyLabelProduct": "Quantité prévue",
+    "idea.qtyLabelService": "Clients prévus",
+    "idea.qtyPhProduct": "10",
+    "idea.qtyPhService": "Clients (ex. : 10)",
+    "idea.typeHintProduct":
+      "Choisissez le type : <strong>Produit = stock + quantité</strong> — <strong>Service = clients</strong>",
+    "idea.typeHintService":
+      "Choisissez le type : <strong>Produit = stock + quantité</strong> — <strong>Service = clients</strong>",
+    "idea.cardCapital": "Capital",
+    "idea.cardPrice": "Prix",
+    "idea.cardQty": "Quantité",
+    "idea.cardExpectedSales": "Vente totale",
+    "idea.cardExpectedProfit": "Profit prévu",
+    "idea.cardMargin": "Marge",
+    "expense.amount": "Montant",
+    "btn.delete": "Supprimer"
+  }
+};
+
+function uiT(key) {
+  const lang = getUiLang();
+  const order = lang === "ar" ? ["ar"] : lang === "fr" ? ["fr", "en", "ar"] : ["en", "ar"];
+  for (const lng of order) {
+    const pack = UI_STRINGS[lng];
+    if (pack && Object.prototype.hasOwnProperty.call(pack, key)) return pack[key];
+  }
+  return key;
+}
+
+/** استبدال {placeholders} في سلسلة مترجمة */
+function uiTf(key, vars) {
+  let s = uiT(key);
+  if (vars && typeof vars === "object") {
+    for (const [k, v] of Object.entries(vars)) {
+      s = s.split(`{${k}}`).join(String(v));
+    }
+  }
+  return s;
+}
+
+function applyStaticUiTranslations() {
+  const lang = getUiLang();
+  document.documentElement.lang = lang === "fr" ? "fr" : lang === "en" ? "en" : "ar";
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  document.title = uiT("app.title");
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const k = el.getAttribute("data-i18n");
+    if (k) el.textContent = uiT(k);
+  });
+  document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+    const k = el.getAttribute("data-i18n-html");
+    if (k) el.innerHTML = uiT(k);
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const k = el.getAttribute("data-i18n-title");
+    if (k) el.setAttribute("title", uiT(k));
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    const k = el.getAttribute("data-i18n-placeholder");
+    if (k) el.setAttribute("placeholder", uiT(k));
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
+    const k = el.getAttribute("data-i18n-aria-label");
+    if (k) el.setAttribute("aria-label", uiT(k));
+  });
+}
+
+function refreshUiLanguage() {
+  applyStaticUiTranslations();
+  if (dom.uiLangSelect) dom.uiLangSelect.value = getUiLang();
+  try {
+    syncIdeaTypeUi();
+  } catch (_) {}
+  try {
+    renderSalesAppShell();
+  } catch (_) {}
+  if (dom.recoverSalesBtn && dom.recoverSalesBtn.getAttribute("aria-busy") !== "true") {
+    dom.recoverSalesBtn.textContent = uiT("settings.recoverSales");
+  }
+}
+
 /** حسابات المستهلك على Google هي @gmail.com أو @googlemail.com فقط — نفس الصندوق. */
 const GMAIL_DOMAIN_RE = /^[^\s@]+@(gmail|googlemail)\.com$/i;
 
@@ -101,8 +538,6 @@ function withTimeoutMs(promise, ms, errorMessage = "انتهت مهلة الان
   });
 }
 
-const RECOVER_SALES_BTN_IDLE_AR = "استعادة المبيعات من الجهاز والسحابة";
-const RECOVER_SALES_BTN_BUSY_AR = "جاري الاستعادة…";
 /** مهلة لكل عمل الدمج والحفظ والعرض (ما عدا رفع السحابة الخلفي) */
 const RECOVER_SALES_MERGE_DEADLINE_MS = 50000;
 /** إن عُلِّقَ التنفيذ المتزامن فلا يصل إلى finally — نُعيد الزر يدويًا */
@@ -131,6 +566,7 @@ const dom = {
   addIdeaToInvestorsBtn: document.getElementById("addIdeaToInvestorsBtn"),
   resetInvestorsBtn: document.getElementById("resetInvestors"),
   deletionLogList: document.getElementById("deletionLogList"),
+  uiLangSelect: document.getElementById("uiLangSelect"),
   appPage: document.getElementById("appPage"),
   sidebarBackdrop: document.getElementById("sidebarBackdrop"),
   sidebarEdgeBtn: document.getElementById("sidebarEdgeBtn"),
@@ -1757,7 +2193,7 @@ async function recoverSalesMergeFromDeviceAndCloud() {
   function idleRecoverSalesButton() {
     if (recBtn) {
       recBtn.disabled = false;
-      recBtn.textContent = RECOVER_SALES_BTN_IDLE_AR;
+      recBtn.textContent = uiT("settings.recoverSales");
       recBtn.removeAttribute("aria-busy");
     }
     if (state.currentUser) setAppEnabled(true);
@@ -1777,7 +2213,7 @@ async function recoverSalesMergeFromDeviceAndCloud() {
   if (recBtn) {
     recBtn.setAttribute("aria-busy", "true");
     recBtn.disabled = true;
-    recBtn.textContent = RECOVER_SALES_BTN_BUSY_AR;
+    recBtn.textContent = uiT("settings.recoverBusy");
   }
 
   try {
@@ -2308,7 +2744,7 @@ function clearSaleEditMode() {
   const submit = document.getElementById("saleSubmitBtn");
   const cancel = document.getElementById("cancelSaleEditBtn");
   if (submit) {
-    submit.textContent = "إضافة سجل اليوم";
+    submit.textContent = uiT("sale.submitAdd");
     submit.classList.remove("btn-success-cta");
   }
   if (cancel) cancel.classList.add("hidden");
@@ -2425,13 +2861,13 @@ function renderDebtCell(record) {
     const whenTrim = String(record.debtClearedAt || "").trim();
     /** التاريخ يُعرَض في صف «التاريخ الذي كُتب» بالشبكة؛ هنا شارة الحالة فقط. */
     if (!whenTrim) {
-      return `<span class="tag-ok">يتم دفع الدين</span><br><span style="font-size:12px;color:var(--muted)">لم يُخزّن تاريخ التحصيل بعد</span>`;
+      return `<span class="tag-ok">${escapeHtml(uiT("sale.debtClearedTag"))}</span><br><span style="font-size:12px;color:var(--muted)">${escapeHtml(uiT("sale.debtNoDateHint"))}</span>`;
     }
-    return `<span class="tag-ok">يتم دفع الدين</span>`;
+    return `<span class="tag-ok">${escapeHtml(uiT("sale.debtClearedTag"))}</span>`;
   }
   const u = originalUnpaid(record);
-  if (u <= 0) return `<span style="font-size:12px;color:var(--muted)">لا يوجد آجل مسجّل</span>`;
-  return `<button type="button" class="btn-ghost-light btn-small" data-debt-paid="${escapeHtml(recordCanonicalId(record))}">تسجيل دفع الدين</button>`;
+  if (u <= 0) return `<span style="font-size:12px;color:var(--muted)">${escapeHtml(uiT("sale.noUnpaidLine"))}</span>`;
+  return `<button type="button" class="btn-ghost-light btn-small" data-debt-paid="${escapeHtml(recordCanonicalId(record))}">${escapeHtml(uiT("sale.payDebtBtn"))}</button>`;
 }
 
 /** صف في بطاقة سجل اليوم؛ القيمة نص/HTML آمن وفق المتصل */
@@ -2485,36 +2921,36 @@ function render() {
       </header>
       ${desc ? `<p class="daily-sale-card__desc">${escapeHtml(desc)}</p>` : ""}
       <div class="daily-sale-card__grid">
-        ${dailyKvMoney("إجمالي البيع", currency(record.totalSale))}
+        ${dailyKvMoney(uiT("sale.cardTotalSale"), currency(record.totalSale))}
         ${dailyKvMoney(
-          "ما لم يُدفع من الفاتورة حتى الآن",
-          orig > 0 ? currency(orig) : "لا يوجد آجل مسجّل"
+          uiT("sale.cardUnpaidOrigin"),
+          orig > 0 ? currency(orig) : uiT("sale.cardNoUnpaid")
         )}
         ${
           record.debtCleared && String(record.debtClearedAt || "").trim()
             ? dailyKvRow(
-                "التاريخ الذي كُتب",
+                uiT("sale.cardDateWritten"),
                 `<strong>${escapeHtml(String(record.debtClearedAt).trim())}</strong>`
               )
             : dailyKvMoney(
-                "متبقي الآجل",
-                rem > 0 ? currency(rem) : orig > 0 ? `${currency(0)} — لا يتبقى` : "لا يوجد آجل مسجّل"
+                uiT("sale.cardRemain"),
+                rem > 0 ? currency(rem) : orig > 0 ? `${currency(0)} — ${uiT("sale.cardRemainZero")}` : uiT("sale.cardNoUnpaid")
               )
         }
-        ${dailyKvMoney("المدفوع", currency(col))}
-        ${dailyKvMoney("التكلفة", currency(record.cost))}
-        ${dailyKvMoney("الربح", currency(record.profit))}
-        ${dailyKvMoney("10% استثمار", currency(record.reinvest))}
-        ${dailyKvMoney("صافي الربح", currency(record.netProfit))}
-        ${dailyKvMoney("رأس المال الجديد", currency(record.newCapital))}
+        ${dailyKvMoney(uiT("sale.cardPaid"), currency(col))}
+        ${dailyKvMoney(uiT("sale.cardCost"), currency(record.cost))}
+        ${dailyKvMoney(uiT("sale.cardProfit"), currency(record.profit))}
+        ${dailyKvMoney(uiT("sale.cardReinvest"), currency(record.reinvest))}
+        ${dailyKvMoney(uiT("sale.cardNetProfit"), currency(record.netProfit))}
+        ${dailyKvMoney(uiT("sale.cardNewCap"), currency(record.newCapital))}
       </div>
       <div class="daily-sale-card__debtblock">
-        <span class="daily-sale-card__k">دفع الدين</span>
+        <span class="daily-sale-card__k">${escapeHtml(uiT("sale.debtBlockTitle"))}</span>
         <div class="daily-sale-card__debtactions">${renderDebtCell(record)}</div>
       </div>
       <div class="daily-sale-card__editrow">
-        <button type="button" class="btn-ghost-light btn-small" data-sale-edit="${escapeHtml(recordCanonicalId(record))}">تعديل</button>
-        <button type="button" class="btn-ghost-light btn-small" data-sale-delete="${escapeHtml(recordCanonicalId(record))}" style="color:var(--danger)">حذف</button>
+        <button type="button" class="btn-ghost-light btn-small" data-sale-edit="${escapeHtml(recordCanonicalId(record))}">${escapeHtml(uiT("sale.edit"))}</button>
+        <button type="button" class="btn-ghost-light btn-small" data-sale-delete="${escapeHtml(recordCanonicalId(record))}" style="color:var(--danger)">${escapeHtml(uiT("sale.delete"))}</button>
       </div>`;
     dom.rowsContainer.appendChild(article);
   }
@@ -2538,9 +2974,9 @@ function render() {
     dom.dashboardHeroProfit.textContent = dom.totals.totalProfitEl.textContent;
   if (dom.sidebarProfitTrend) {
     if (state.records.length === 0) dom.sidebarProfitTrend.textContent = "—";
-    else if (totalProfit > 0) dom.sidebarProfitTrend.textContent = "+ نشاط";
-    else if (totalProfit < 0) dom.sidebarProfitTrend.textContent = "تنبيه";
-    else dom.sidebarProfitTrend.textContent = "متعادل";
+    else if (totalProfit > 0) dom.sidebarProfitTrend.textContent = uiT("sidebar.trendActive");
+    else if (totalProfit < 0) dom.sidebarProfitTrend.textContent = uiT("sidebar.trendWarn");
+    else dom.sidebarProfitTrend.textContent = uiT("sidebar.trendFlat");
   }
 
   renderFinanceHub();
@@ -2560,7 +2996,7 @@ function renderDailySalesSummary() {
 
   const entries = [...salesByDay.entries()].sort((a, b) => String(b[0]).localeCompare(String(a[0])));
   if (entries.length === 0) {
-    dom.dailySalesSummary.innerHTML = `<div class="rank-item"><span>لا توجد بيانات يومية بعد</span><strong>—</strong></div>`;
+    dom.dailySalesSummary.innerHTML = `<div class="rank-item"><span>${escapeHtml(uiT("summary.emptyDaily"))}</span><strong>—</strong></div>`;
     return;
   }
 
@@ -2582,7 +3018,7 @@ function renderMonthlyProfitSummary() {
 
   const entries = [...profitByMonth.entries()].sort((a, b) => String(b[0]).localeCompare(String(a[0])));
   if (entries.length === 0) {
-    dom.monthlyProfitSummary.innerHTML = `<div class="rank-item"><span>لا توجد بيانات شهرية بعد</span><strong>—</strong></div>`;
+    dom.monthlyProfitSummary.innerHTML = `<div class="rank-item"><span>${escapeHtml(uiT("summary.emptyMonthly"))}</span><strong>—</strong></div>`;
     return;
   }
 
@@ -2674,25 +3110,23 @@ function renderIdeasPreview() {
 }
 
 function ideaTypeLabel(idea) {
-  const t = idea?.ideaType || "product";
-  return t === "service" ? "خدمة" : "منتج";
+  const ty = idea?.ideaType || "product";
+  return ty === "service" ? uiT("idea.typeService") : uiT("idea.typeProduct");
 }
 
 function syncIdeaTypeUi() {
   const isService = !!dom.ideaTypeService?.checked;
   if (dom.ideaPriceLabel) {
-    dom.ideaPriceLabel.textContent = isService ? "سعر الخدمة المتوقع (د)" : "سعر البيع المتوقع (د)";
+    dom.ideaPriceLabel.textContent = isService ? uiT("idea.priceLabelService") : uiT("idea.priceLabelProduct");
   }
   if (dom.ideaQtyLabel) {
-    dom.ideaQtyLabel.textContent = isService ? "عدد الزبائن المتوقع" : "الكمية المتوقعة";
+    dom.ideaQtyLabel.textContent = isService ? uiT("idea.qtyLabelService") : uiT("idea.qtyLabelProduct");
   }
   if (dom.ideaFields.qty) {
-    dom.ideaFields.qty.placeholder = isService ? "عدد الزبائن (مثال: 10)" : "10";
+    dom.ideaFields.qty.placeholder = isService ? uiT("idea.qtyPhService") : uiT("idea.qtyPhProduct");
   }
   if (dom.ideaTypeHint) {
-    dom.ideaTypeHint.innerHTML = isService
-      ? "اختر النوع قبل إدخال الفكرة: <strong>منتج = بيع + مخزون + الكمية المتوقعة</strong> — <strong>خدمة = عمل + زبائن + عدد الزبائن المتوقع</strong>"
-      : "اختر النوع قبل إدخال الفكرة: <strong>منتج = بيع + مخزون + الكمية المتوقعة</strong> — <strong>خدمة = عمل + زبائن + عدد الزبائن المتوقع</strong>";
+    dom.ideaTypeHint.innerHTML = isService ? uiT("idea.typeHintService") : uiT("idea.typeHintProduct");
   }
 }
 
@@ -2713,12 +3147,12 @@ function renderIdeas() {
       </header>
       ${desc ? `<p class="idea-log-card__desc">${escapeHtml(desc)}</p>` : ""}
       <div class="idea-log-card__grid">
-        ${dailyKvMoney("رأس المال", currency(Number(idea.capital) || 0))}
-        ${dailyKvMoney("السعر", currency(Number(idea.price) || 0))}
-        ${dailyKvRow("الكمية", escapeHtml(String(Number(idea.qty) || 0)))}
-        ${dailyKvMoney("إجمالي البيع", currency(sales))}
-        ${dailyKvMoney("الربح المتوقع", currency(profit))}
-        ${dailyKvRow("الهامش", escapeHtml(`${marginPct}%`))}
+        ${dailyKvMoney(uiT("idea.cardCapital"), currency(Number(idea.capital) || 0))}
+        ${dailyKvMoney(uiT("idea.cardPrice"), currency(Number(idea.price) || 0))}
+        ${dailyKvRow(uiT("idea.cardQty"), escapeHtml(String(Number(idea.qty) || 0)))}
+        ${dailyKvMoney(uiT("idea.cardExpectedSales"), currency(sales))}
+        ${dailyKvMoney(uiT("idea.cardExpectedProfit"), currency(profit))}
+        ${dailyKvRow(uiT("idea.cardMargin"), escapeHtml(`${marginPct}%`))}
       </div>`;
     dom.ideaRowsContainer.appendChild(article);
   }
@@ -2737,11 +3171,11 @@ function renderExpenses() {
     article.innerHTML = `
       <div class="expense-log-card__head">
         <span class="expense-log-card__date">${escapeHtml(String(row.date || "—"))}</span>
-        <button type="button" class="btn-ghost-light btn-small" data-expense-delete="${idEsc}" style="color:var(--danger)">حذف</button>
+        <button type="button" class="btn-ghost-light btn-small" data-expense-delete="${idEsc}" style="color:var(--danger)">${escapeHtml(uiT("btn.delete"))}</button>
       </div>
       <h3 class="expense-log-card__title">${escapeHtml(String(row.purchase || "—"))}</h3>
       <div class="expense-log-card__grid">
-        ${dailyKvMoney("الثمن", currency(Number(row.amount) || 0))}
+        ${dailyKvMoney(uiT("expense.amount"), currency(Number(row.amount) || 0))}
       </div>`;
     dom.expenseCards.appendChild(article);
   }
@@ -2763,7 +3197,7 @@ function renderWasiyyat() {
       <td>${completion}</td>
       <td>${escapeHtml(String(row.personName || ""))}</td>
       <td>${row.phone ? escapeHtml(String(row.phone)) : "—"}</td>
-      <td><button type="button" class="btn-ghost-light btn-small" data-wasiyyat-delete="${idEsc}" style="color:var(--danger)">حذف</button></td>
+      <td><button type="button" class="btn-ghost-light btn-small" data-wasiyyat-delete="${idEsc}" style="color:var(--danger)">${escapeHtml(uiT("btn.delete"))}</button></td>
     `;
     dom.wasiyyatRowsContainer.appendChild(tr);
   }
@@ -2794,7 +3228,7 @@ function renderInvestors() {
 function renderDeletionLog() {
   if (!dom.deletionLogList) return;
   if (state.deletionLog.length === 0) {
-    dom.deletionLogList.innerHTML = `<div class="rank-item"><span>لا توجد عمليات حذف بعد</span><strong>—</strong></div>`;
+    dom.deletionLogList.innerHTML = `<div class="rank-item"><span>${escapeHtml(uiT("deletion.empty"))}</span><strong>—</strong></div>`;
     return;
   }
   dom.deletionLogList.innerHTML = state.deletionLog
@@ -2833,10 +3267,14 @@ function renderInsights() {
     const pUnpaid = (totalUnpaid / donutBase) * 100;
     const pReinvest = Math.max(0, 100 - pPaid - pUnpaid);
     dom.insights.donutEl.style.background = `conic-gradient(#2ed69a 0 ${pPaid}%, #ff6f8f ${pPaid}% ${pPaid + pUnpaid}%, #f0c45e ${pPaid + pUnpaid}% 100%)`;
-    dom.insights.donutHintEl.textContent = `محصّل: ${currency(totalPaid)} | غير مدفوع: ${currency(totalUnpaid)} | استثمار: ${currency(totalReinvest)}`;
+    dom.insights.donutHintEl.textContent = uiTf("insights.donutLine", {
+      paid: currency(totalPaid),
+      unpaid: currency(totalUnpaid),
+      reinvest: currency(totalReinvest)
+    });
   } else {
     dom.insights.donutEl.style.background = "conic-gradient(#2e3f66 0 100%)";
-    dom.insights.donutHintEl.textContent = "لا توجد بيانات مبيعات بعد.";
+    dom.insights.donutHintEl.textContent = uiT("insights.donutEmpty");
   }
 
   // 2) Line: last 7 days sales trend (real records).
@@ -2859,10 +3297,10 @@ function renderInsights() {
       .join(" ");
     dom.insights.lineEl.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%"><polyline points="${points}" fill="none" stroke="#68b9ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     const latest = dayEntries[dayEntries.length - 1][1];
-    dom.insights.lineHintEl.textContent = `آخر يوم: ${currency(latest)} | أعلى يوم: ${currency(maxV)}`;
+    dom.insights.lineHintEl.textContent = uiTf("insights.lineLine", { latest: currency(latest), max: currency(maxV) });
   } else {
     dom.insights.lineEl.innerHTML = "";
-    dom.insights.lineHintEl.textContent = "أضف مبيعات لأيام متعددة لعرض التطور.";
+    dom.insights.lineHintEl.textContent = uiT("insights.lineEmpty");
   }
 
   // 3) Top ideas: actual top 3 by expected profit.
@@ -2870,7 +3308,7 @@ function renderInsights() {
     .sort((a, b) => (Number(b.expectedProfit) || 0) - (Number(a.expectedProfit) || 0))
     .slice(0, 3);
   if (topIdeas.length === 0) {
-    dom.insights.bestIdeasListEl.innerHTML = `<div class="rank-item"><span>لا توجد أفكار كافية بعد</span><strong>—</strong></div>`;
+    dom.insights.bestIdeasListEl.innerHTML = `<div class="rank-item"><span>${escapeHtml(uiT("insights.bestEmpty"))}</span><strong>—</strong></div>`;
   } else {
     const medals = ["🏅", "🥈", "🥉"];
     dom.insights.bestIdeasListEl.innerHTML = topIdeas
@@ -3303,7 +3741,7 @@ async function init() {
       const submitBtn = document.getElementById("saleSubmitBtn");
       const cancelBtn = document.getElementById("cancelSaleEditBtn");
       if (submitBtn) {
-        submitBtn.textContent = "حفظ التعديلات";
+        submitBtn.textContent = uiT("sale.submitSave");
         submitBtn.classList.add("btn-success-cta");
       }
       if (cancelBtn) cancelBtn.classList.remove("hidden");
@@ -3656,8 +4094,17 @@ async function init() {
     }
   });
 
+  if (dom.uiLangSelect) {
+    dom.uiLangSelect.value = getUiLang();
+    dom.uiLangSelect.addEventListener("change", () => {
+      setUiLang(dom.uiLangSelect.value);
+      refreshUiLanguage();
+    });
+  }
+  applyStaticUiTranslations();
+
   refreshAuthButtons();
-  setAuthStatus("النظام جاهز. يمكنك تسجيل الدخول أو إنشاء حساب.", true);
+  setAuthStatus(uiT("auth.systemReady"), true);
   await refreshSessionState();
   syncIdeaTypeUi();
   renderIdeasPreview();
