@@ -23,7 +23,7 @@ const SUPABASE_TABLE = "sales_records";
  * 1) dom + state — عناصر الصفحة والحالة الحية.
  * 2) Auth + activateAppForUser — تسجيل الدخول وجلب/دمج المبيعات مع Supabase.
  * 3) سجلات المبيعات — load/saveRecords، merge، computeRecord، render.
- * 4) الإعدادات — recoverSalesMergeFromDeviceAndCloud (استعادة من الجهاز+السحابة) وبعد الدخول/التحديث تُكمَل تلقائيًا؛ مسح السجلات؛ تهيئة المستمعات في init()/bootstrap().
+ * 4) الإعدادات — استعادة مبيعات (تلقائي بعد التفعيل؛ يدوي من الزر؛ «دفن» يمنع إعادة صفوف حُذفت يدويًا بعد التحديث حتى تمسح الدفنة بالاستعادة اليدوية أو مسح الكل)، مسح السجلات؛ init()/bootstrap().
  */
 const LOG_PREFIX = "[daily-sales]";
 const AUTH_MESSAGES = {
@@ -651,7 +651,8 @@ async function trySalvageGuestOrOfflineDatastore(reason) {
     return false;
   }
 
-  state.records = salesLoad.list || [];
+  const tombUserId = readLastKnownAuthUserId();
+  state.records = filterSalvageSalesByUserTombstones(salesLoad.list || [], tombUserId);
   state.ideas = ideas;
   state.expenses = expenses;
   state.personalWallet = personalWallet;
@@ -978,7 +979,8 @@ async function activateAppSerialized(user, statusSuffix = "", activateOptions = 
 
   try {
     const localLoad = loadSalesFromAllLocalSnapshots();
-    const local = localLoad.list;
+    /** لقطات الجهاز القديمة لا تُعيد صفوفًا حُذفت عمدًا؛ الاستعادة اليدوية تمسح هذا السدّ وتعيد الضمّ كما كان. */
+    const local = filterSalvageSalesByUserTombstones(localLoad.list, user?.id ?? state.currentUser?.id);
     state.ideas = loadIdeas();
     state.expenses = loadExpenses();
     state.personalWallet = loadPersonalWallet();
@@ -1105,7 +1107,7 @@ async function activateAppSerialized(user, statusSuffix = "", activateOptions = 
       try {
         const salvage = loadSalesFromAllLocalSnapshots();
         if (salvage.list.length > 0) {
-          state.records = salvage.list;
+          state.records = filterSalvageSalesByUserTombstones(salvage.list, state.currentUser?.id);
           ensureAllSalesRecordsHaveIds();
           saveRecords();
           setSyncStatus("تعذّرت المزامنة أثناء التفعيل؛ أُعيد تحميل المبيعات من التخزين المحلي.", true);
@@ -1353,6 +1355,81 @@ function mergeSalesListsLocalRemote(remotes, locals) {
   return [...map.values()];
 }
 
+/** مفاتيح صفوف أزالها المستخدم عمدًا — لا تُسترجَع من لقطات قديمة عند التحديث؛ تُصفَّر بالاستعادة اليدوية أو بمسح كل المبيعات. */
+const SALES_TOMBSTONE_KEY_PREFIX = `${STORAGE_KEY}:sales-tombstones:v1:`;
+const SALES_TOMBSTONES_MAX = 2800;
+
+function salesTombstonesStorageKey(userId) {
+  const uid = String(userId || "").trim();
+  return uid ? `${SALES_TOMBSTONE_KEY_PREFIX}${uid}` : "";
+}
+
+/** @returns {Set<string>} */
+function loadSalesTombstonesSet(userId) {
+  const k = salesTombstonesStorageKey(userId ?? state.currentUser?.id ?? "");
+  if (!k) return new Set();
+  try {
+    const raw = localStorage.getItem(k);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map(String).filter(Boolean));
+  } catch (_) {
+    return new Set();
+  }
+}
+
+/** @param {Set<string>} set */
+function persistSalesTombstonesSet(set, userId) {
+  const k = salesTombstonesStorageKey(userId ?? state.currentUser?.id ?? "");
+  if (!k) return;
+  const arr = [...set];
+  const capped = arr.length > SALES_TOMBSTONES_MAX ? arr.slice(arr.length - SALES_TOMBSTONES_MAX) : arr;
+  try {
+    localStorage.setItem(k, JSON.stringify(capped));
+  } catch (_) {}
+}
+
+function rememberUserDeletedSaleRecord(record, userId) {
+  const uid = String(userId ?? state.currentUser?.id ?? "").trim();
+  if (!uid || !record) return;
+  const ts = loadSalesTombstonesSet(uid);
+  const cid = recordCanonicalId(record);
+  if (cid) ts.add(cid);
+  ts.add(mergeKeyForRecord(record));
+  persistSalesTombstonesSet(ts, uid);
+  log("info", "sale_tombstone_added", {
+    uid: safeUserIdForLog(uid),
+    recordIdHint: cid ? safeRecordIdForLog(cid) : "fp-key"
+  });
+}
+
+function clearSalesTombstones(userId) {
+  const k = salesTombstonesStorageKey(userId ?? state.currentUser?.id ?? "");
+  if (k) {
+    try {
+      localStorage.removeItem(k);
+    } catch (_) {}
+  }
+}
+
+function isSalesRecordTombstoned(record, tombstones) {
+  if (!record || !(tombstones instanceof Set) || tombstones.size === 0) return false;
+  const cid = recordCanonicalId(record);
+  if (cid && tombstones.has(cid)) return true;
+  const mk = mergeKeyForRecord(record);
+  return tombstones.has(mk);
+}
+
+/** لا تستخدم في المسارات اليدوية (استعادة من الإعدادات) — أو مرِّر تجاوزًا من الواجهة اليدوية بعد مسح قائمة الدفن. */
+function filterSalvageSalesByUserTombstones(list, userId) {
+  if (!list?.length) return list || [];
+  const uid = String(userId ?? state.currentUser?.id ?? "").trim();
+  if (!uid) return list;
+  const ts = loadSalesTombstonesSet(uid);
+  if (ts.size === 0) return list;
+  return list.filter((r) => !isSalesRecordTombstoned(r, ts));
+}
+
 function userRecoverSalesKey() {
   return state.currentUser ? `${userStorageKey()}:recover-snapshot` : "";
 }
@@ -1485,7 +1562,11 @@ async function recoverSalesMergeBody(options = {}) {
   if (!automatic) setSyncStatus("جاري جمع النسَخ المحليّة ثم السحابة…", false);
   const before = state.records.length;
   const salvagePack = loadSalesFromAllLocalSnapshots();
-  let merged = mergeSalesListsLocalRemote(salvagePack.list, state.records);
+  let salvageList = salvagePack.list;
+  if (automatic) {
+    salvageList = filterSalvageSalesByUserTombstones(salvageList, state.currentUser?.id);
+  }
+  let merged = mergeSalesListsLocalRemote(salvageList, state.records);
   let remotePullHadRows = false;
   let remotePullFailed = false;
 
@@ -1605,6 +1686,9 @@ async function recoverSalesMergeFromDeviceAndCloud() {
     setSyncStatus("أُلغيت الاستعادة من نافذة التأكيد.", false);
     return;
   }
+
+  /** تسمح بالضمّ الكامل بما في ذلك ما حُذف سابقًا على الجهاز؛ الاستعادة التلقائية عند التحديث تبقى تحترم الحذف العمد. */
+  clearSalesTombstones();
 
   const recBtn = dom.recoverSalesBtn;
   let safetyUiTimer = null;
@@ -3181,6 +3265,7 @@ async function init() {
       } else setSyncStatus("تم حذف العملية من السجل المحلي.", true);
       log("info", "sale_deleted", { recordId: safeRecordIdForLog(id) });
       addDeletionLog(`حذف عملية بيع (${removed.product || id})`);
+      rememberUserDeletedSaleRecord(removed);
       return;
     }
 
@@ -3472,6 +3557,7 @@ async function init() {
     log("warn", "reset_all_local", { previousCount: state.records.length });
     const deletedCount = state.records.length;
     const uid = state.currentUser.id;
+    clearSalesTombstones(uid);
     state.records = [];
     saveRecords({ allowEmptyBackup: true, allowEmptyPersist: true });
     render();
