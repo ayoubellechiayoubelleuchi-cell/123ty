@@ -2418,8 +2418,12 @@ function buildExpenseEntry(raw) {
 
 function renderDebtCell(record) {
   if (record.debtCleared) {
-    const when = record.debtClearedAt ? escapeHtml(String(record.debtClearedAt)) : "";
-    return `<span class="tag-ok">تم دفع الدين</span>${when ? `<br><span style="font-size:12px;color:var(--muted)">${when}</span>` : ""}`;
+    const whenTrim = String(record.debtClearedAt || "").trim();
+    /** التاريخ يُعرَض في صف «التاريخ الذي كُتب» بالشبكة؛ هنا شارة الحالة فقط. */
+    if (!whenTrim) {
+      return `<span class="tag-ok">يتم دفع الدين</span><br><span style="font-size:12px;color:var(--muted)">لم يُخزّن تاريخ التحصيل بعد</span>`;
+    }
+    return `<span class="tag-ok">يتم دفع الدين</span>`;
   }
   const u = originalUnpaid(record);
   if (u <= 0) return `<span style="font-size:12px;color:var(--muted)">لا يوجد آجل مسجّل</span>`;
@@ -2478,11 +2482,21 @@ function render() {
       ${desc ? `<p class="daily-sale-card__desc">${escapeHtml(desc)}</p>` : ""}
       <div class="daily-sale-card__grid">
         ${dailyKvMoney("إجمالي البيع", currency(record.totalSale))}
-        ${dailyKvMoney("آجل (أصل)", orig > 0 ? currency(orig) : "—")}
         ${dailyKvMoney(
-          "متبقي الآجل",
-          rem > 0 ? currency(rem) : orig > 0 ? `${currency(0)} — لا يتبقى` : "—"
+          "ما لم يُدفع من الفاتورة حتى الآن",
+          orig > 0 ? currency(orig) : "لا يوجد آجل مسجّل"
         )}
+        ${
+          record.debtCleared && String(record.debtClearedAt || "").trim()
+            ? dailyKvRow(
+                "التاريخ الذي كُتب",
+                `<strong>${escapeHtml(String(record.debtClearedAt).trim())}</strong>`
+              )
+            : dailyKvMoney(
+                "متبقي الآجل",
+                rem > 0 ? currency(rem) : orig > 0 ? `${currency(0)} — لا يتبقى` : "لا يوجد آجل مسجّل"
+              )
+        }
         ${dailyKvMoney("المدفوع", currency(col))}
         ${dailyKvMoney("التكلفة", currency(record.cost))}
         ${dailyKvMoney("الربح", currency(record.profit))}
