@@ -2066,7 +2066,6 @@ async function upsertManyRemote(list, options = {}) {
     return false;
   }
   log("info", "remote_upsert_many_ok", { count: list.length });
-  if (!suppressStatus) setSyncStatus("تمت مزامنة البيانات المحلية مع Supabase.", true);
   return true;
 }
 
